@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.local
+.env*.local
+
+# local dev waitlist fallback store (never commit captured emails)
+.data/
+
+# logs & os
+*.log
+npm-debug.log*
+.DS_Store
+
+# test/coverage
+coverage/
+
+# editor
+.vscode/
+.idea/
+
+# vercel
+.vercel
