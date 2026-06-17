@@ -1,11 +1,12 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
-  role: "learner" | "instructor" | "moderator" | "admin";
+  role: "learner" | "instructor" | "moderator" | "admin" | "super_admin";
   isInstructor: boolean;
 }
 
@@ -18,13 +19,9 @@ export const DEMO_USER: SessionUser = {
   isInstructor: false,
 };
 
-const useSupabase = Boolean(
-  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
-
 /** The signed-in user, or null. In mock mode returns the demo user. */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  if (!useSupabase) return DEMO_USER;
+  if (!SUPABASE_ENABLED) return DEMO_USER;
 
   const supabase = createSupabaseServerClient();
   const {
@@ -52,5 +49,16 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+export function isModerator(user: SessionUser): boolean {
+  return user.role === "moderator" || user.role === "admin" || user.role === "super_admin";
+}
+
+/** For admin pages: returns the user if a moderator+, else 404 (hides the surface). */
+export async function requireModerator(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!isModerator(user)) notFound();
   return user;
 }

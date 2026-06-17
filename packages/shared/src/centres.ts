@@ -118,3 +118,10 @@ export function getNearbyCentres(centre: TestCentre): TestCentre[] {
     .map((slug) => getCentreBySlug(slug))
     .filter((c): c is TestCentre => Boolean(c));
 }
+
+/** All known centre slugs — used to validate user input. */
+export const CENTRE_SLUGS: string[] = TEST_CENTRES.map((c) => c.slug);
+
+export function isKnownCentre(slug: string): boolean {
+  return CENTRE_SLUGS.includes(slug);
+}

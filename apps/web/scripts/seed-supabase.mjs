@@ -145,6 +145,7 @@ async function main() {
 
   const demoId = await ensureUser("demo@testslotradar.app", existing);
   const instructorId = await ensureUser("instructor@testslotradar.app", existing);
+  const adminId = await ensureUser("admin@testslotradar.app", existing);
   const reporterIds = [];
   for (let i = 1; i <= 10; i++) {
     reporterIds.push(await ensureUser(`reporter${i}@testslotradar.app`, existing));
@@ -153,6 +154,7 @@ async function main() {
   await upsertProfiles([
     { id: demoId, display_name: "Demo Learner", role: "learner", is_instructor_verified: false },
     { id: instructorId, display_name: "Demo Instructor", role: "instructor", is_instructor_verified: true },
+    { id: adminId, display_name: "Demo Admin", role: "admin", is_instructor_verified: false },
     ...reporterIds.map((id, i) => ({
       id,
       display_name: `Reporter ${i + 1}`,
@@ -208,6 +210,7 @@ async function main() {
   console.log("Seed complete:");
   console.log(`  demo user:       ${demoId}`);
   console.log(`  instructor user: ${instructorId}`);
+  console.log(`  admin user:      ${adminId}`);
   console.log(`  reporters:       ${reporterIds.length}`);
   console.log(`  centres:         ${CENTRES.length}`);
 }

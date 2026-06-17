@@ -1,12 +1,12 @@
 import { TEST_CENTRES, getCentreBySlug } from "@testslot/shared";
-import { getStore } from "@/lib/data";
+import { getServiceStore } from "@/lib/data";
 import { CancellationForm } from "@/components/app/CancellationForm";
 import { formatDateTime, formatMonth } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function CancellationsPage() {
-  const store = getStore();
+  const store = getServiceStore();
   const posts = await store.listCancellations();
   const centres = TEST_CENTRES.map((c) => ({ slug: c.slug, name: c.name }));
 

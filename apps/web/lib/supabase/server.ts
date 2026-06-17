@@ -1,13 +1,15 @@
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { supabaseEnv } from "./config";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-/** Server-side Supabase client bound to the request cookies (user session). */
+/**
+ * Server-side Supabase client bound to the request cookies (the user's session).
+ * Only call when Supabase is configured (guarded by SUPABASE_ENABLED upstream).
+ */
 export function createSupabaseServerClient() {
+  const { url, anonKey } = supabaseEnv();
   const cookieStore = cookies();
-  return createServerClient(url, anon, {
+  return createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -18,7 +20,7 @@ export function createSupabaseServerClient() {
             cookieStore.set(name, value, options),
           );
         } catch {
-          // setAll called from a Server Component — the middleware refreshes cookies.
+          // Called from a Server Component — the middleware refreshes cookies.
         }
       },
     },

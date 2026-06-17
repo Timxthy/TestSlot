@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getStore } from "@/lib/data";
+import { getServiceStore } from "@/lib/data";
 import { getUserNotifications } from "@/lib/notifications";
 import { MarkNotificationsRead } from "@/components/app/MarkNotificationsRead";
 import { timeAgo } from "@/lib/format";
@@ -15,7 +15,7 @@ const toneDot: Record<string, string> = {
 
 export default async function NotificationsPage() {
   const user = await requireUser();
-  const items = await getUserNotifications(getStore(), user.id);
+  const items = await getUserNotifications(getServiceStore(), user.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">

@@ -1,12 +1,14 @@
 import { getCentreBySlug } from "@testslot/shared";
-import { getAdminStore } from "@/lib/data";
+import { requireModerator } from "@/lib/auth";
+import { getServiceStore } from "@/lib/data";
 import { ModerationActions } from "@/components/app/ModerationActions";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const store = getAdminStore();
+  await requireModerator();
+  const store = getServiceStore();
   const pending = await store.listPendingCancellations();
 
   return (

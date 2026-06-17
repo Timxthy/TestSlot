@@ -2,29 +2,28 @@ import type { DataStore } from "./store";
 import { mockStore } from "./mock-store";
 import { createSupabaseStore } from "./supabase-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-
-const useSupabase = Boolean(
-  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
+import { getAdminClient } from "@/lib/supabase/admin";
+import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 
 /**
- * Session-scoped store: reads/writes go through the signed-in user's JWT, so
- * Postgres Row-Level Security is enforced. Use for all user-facing work.
- * Falls back to the seeded mock store when Supabase isn't configured.
+ * Session-scoped store — reads/writes go through the signed-in user's JWT, so
+ * Row-Level Security is enforced. Use for user WRITES (reports, follows,
+ * cancellations) so a user can only act as themselves.
  */
 export function getStore(): DataStore {
-  if (!useSupabase) return mockStore;
+  if (!SUPABASE_ENABLED) return mockStore;
   return createSupabaseStore(createSupabaseServerClient());
 }
 
 /**
- * Service-role store (bypasses RLS). Use ONLY for moderation/admin and trusted
- * system tasks — never for ordinary user requests.
+ * Trusted server store (service role, bypasses RLS). Use for aggregate READS
+ * (status/heatmap/feed) — which must never be exposed to clients as raw rows —
+ * and, ONLY after an explicit role check, for moderation. Never call this for an
+ * unauthenticated/unauthorised request.
  */
-export function getAdminStore(): DataStore {
-  if (!useSupabase) return mockStore;
-  return createSupabaseStore(supabaseAdmin);
+export function getServiceStore(): DataStore {
+  if (!SUPABASE_ENABLED) return mockStore;
+  return createSupabaseStore(getAdminClient());
 }
 
 export type { DataStore } from "./store";

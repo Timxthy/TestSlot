@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { STATUS_META, getCentreBySlug } from "@testslot/shared";
 import { requireUser } from "@/lib/auth";
-import { getStore } from "@/lib/data";
+import { getServiceStore } from "@/lib/data";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { GovUkLink } from "@/components/GovUkLink";
 import { timeAgo } from "@/lib/format";
@@ -12,7 +12,7 @@ const REMINDERS = ["5:55am", "12:30pm", "8:30pm", "Sun evening", "Mon morning"];
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const store = getStore();
+  const store = getServiceStore();
   const [follows, statuses] = await Promise.all([
     store.listFollows(user.id),
     store.listCentreStatuses(),
