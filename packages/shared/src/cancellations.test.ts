@@ -14,7 +14,10 @@ describe("screenForScam", () => {
 });
 
 describe("cancellationInputSchema", () => {
-  const base = { centreSlug: "reading", plannedCancelAt: "2026-06-20T15:30" };
+  const base = {
+    centreSlug: "reading",
+    plannedCancelAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  };
 
   it("accepts a post with all anti-broker confirmations", () => {
     expect(

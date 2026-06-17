@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -21,9 +21,10 @@ export async function POST(request: Request) {
     );
   }
   const { name, email, password } = parsed.data;
+  const admin = getAdminClient();
 
   // Instant-confirm via Admin API so there's no email round-trip.
-  const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+  const { data: created, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -37,9 +38,18 @@ export async function POST(request: Request) {
     );
   }
 
-  await supabaseAdmin
+  // Profile row is required for FKs (reports/follows). If it fails, roll back the auth user.
+  const { error: profileError } = await admin
     .from("profiles")
     .upsert({ id: created.user.id, display_name: name, role: "learner", is_instructor_verified: false });
+  if (profileError) {
+    await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+    console.error("signup profile creation failed", profileError);
+    return NextResponse.json(
+      { error: "Could not finish creating your account. Please try again." },
+      { status: 500 },
+    );
+  }
 
   const supabase = createSupabaseServerClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });

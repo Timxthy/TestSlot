@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isKnownCentre } from "./centres";
 
 export interface CancellationPost {
   id: string;
@@ -18,8 +19,19 @@ export interface CancellationPost {
 
 /** Anti-broker confirmations are required to post (PRD §11.1 Story 5). */
 export const cancellationInputSchema = z.object({
-  centreSlug: z.string().min(1, "Choose a centre."),
-  plannedCancelAt: z.string().min(1, "When do you plan to cancel?"),
+  centreSlug: z
+    .string()
+    .min(1, "Choose a centre.")
+    .refine(isKnownCentre, "Unknown centre."),
+  plannedCancelAt: z
+    .string()
+    .refine(
+      (s) => {
+        const t = Date.parse(s);
+        return !Number.isNaN(t) && t > Date.now();
+      },
+      "Choose a future date and time.",
+    ),
   testMonth: z
     .string()
     .regex(/^\d{4}-\d{2}$/)

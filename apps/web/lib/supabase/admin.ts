@@ -1,13 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { supabaseEnv } from "./config";
 
-const url = process.env.SUPABASE_URL ?? "";
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+let cached: SupabaseClient | null = null;
 
 /**
- * Service-role client (bypasses RLS). Server-only — used for the Auth Admin API
- * (instant-confirm signup) and trusted writes like creating the profile row.
- * Never import this into client components.
+ * Lazily-created service-role client (bypasses RLS). Created on first use rather
+ * than at import time, and throws if Supabase isn't configured. Server-only —
+ * never import into a client component.
  */
-export const supabaseAdmin = createClient(url, serviceKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+export function getAdminClient(): SupabaseClient {
+  if (cached) return cached;
+  const { url, serviceKey } = supabaseEnv();
+  cached = createClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return cached;
+}

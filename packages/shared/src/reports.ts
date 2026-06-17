@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isKnownCentre } from "./centres";
 
 export const REPORT_TYPES = [
   "no_tests_found",
@@ -67,7 +68,10 @@ export interface AvailabilityReport {
 
 /** What a learner submits after checking GOV.UK. */
 export const reportInputSchema = z.object({
-  centreSlug: z.string().min(1, "Choose a centre."),
+  centreSlug: z
+    .string()
+    .min(1, "Choose a centre.")
+    .refine(isKnownCentre, "Unknown centre."),
   type: z.enum(REPORT_TYPES, { required_error: "Tell us what you saw." }),
   earliestMonth: z
     .string()

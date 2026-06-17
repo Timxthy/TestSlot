@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
-import { getAdminStore } from "@/lib/data";
+import { getCurrentUser, isModerator } from "@/lib/auth";
+import { getServiceStore } from "@/lib/data";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+  if (!isModerator(user)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   let body: { id?: unknown; action?: unknown };
   try {
     body = await request.json();
@@ -16,7 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const store = getAdminStore();
+  const store = getServiceStore();
   await store.setCancellationModeration(id, action === "approve" ? "approved" : "rejected");
   return NextResponse.json({ ok: true });
 }

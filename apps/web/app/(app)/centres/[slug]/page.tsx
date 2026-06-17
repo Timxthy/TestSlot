@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { COMMUNITY_DATA_LABEL, getNearbyCentres } from "@testslot/shared";
 import { requireUser } from "@/lib/auth";
-import { getStore } from "@/lib/data";
+import { getServiceStore } from "@/lib/data";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { Heatmap } from "@/components/app/Heatmap";
 import { ReportFeed } from "@/components/app/ReportFeed";
@@ -16,7 +16,7 @@ export default async function AppCentrePage({
 }: {
   params: { slug: string };
 }) {
-  const store = getStore();
+  const store = getServiceStore();
   const centre = await store.getCentre(params.slug);
   if (!centre) notFound();
 
