@@ -72,13 +72,25 @@ Verified the **service-role secret does not appear in the client bundle**
 4. Confirm no `sb_secret` in deployed client assets (DevTools → Sources, or curl a JS chunk).
 5. One auth round-trip on the live site (sign up / log in / log out).
 
-## 6. Chunk B preview — notification delivery
+## 6. Chunk B — notification delivery (scaffolded, inert)
 
-Will use **Netlify Scheduled Functions** (cron) hitting a service-role endpoint that
-finds newly approved + active cancellation posts and emails followers (Resend), with
-a deliveries table for idempotency. Draft schema:
-[`supabase/migrations/0003_notification_deliveries.sql`](supabase/migrations/0003_notification_deliveries.sql)
-(**not yet applied** — review first). New env: `RESEND_API_KEY`, `CRON_SECRET`.
+Now in the tree, guarded so it sends nothing until configured:
+- [`app/api/cron/deliver-notifications/route.ts`](apps/web/app/api/cron/deliver-notifications/route.ts)
+  — service-role worker: finds newly approved+active cancellation posts → emails
+  opted-in followers via Resend → records each send in `notification_deliveries`
+  (unique index = idempotent re-runs). Requires `Authorization: Bearer ${CRON_SECRET}`.
+- [`netlify/functions/deliver-notifications.ts`](apps/web/netlify/functions/deliver-notifications.ts)
+  — Netlify Scheduled Function (every 15 min) that pings the route with the secret.
+- [`lib/email/resend.ts`](apps/web/lib/email/resend.ts) — dependency-free Resend REST client.
+- [`supabase/migrations/0003_notification_deliveries.sql`](supabase/migrations/0003_notification_deliveries.sql)
+  — deliveries/dedupe table (**not yet applied** — review first).
+
+**Verified inert:** with no secret → 401; wrong secret → 401; correct secret in
+mock mode → `200 {"skipped":true,...}`.
+
+**To activate:** apply migration `0003`; set `RESEND_API_KEY`, `RESEND_FROM`
+(verified domain), and `CRON_SECRET` in Netlify env. Then a manual POST with the
+secret should report `{ok:true, posts, queued, sent, skipped}`.
 
 **Compliance:** deliveries are triggered only by user-submitted, moderated community
 events — never by scanning DVSA.
