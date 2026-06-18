@@ -23,24 +23,26 @@ When connecting the repo (Add new site → Import from Git):
 
 ## 2. Environment variables (Netlify UI → Site config → Environment variables)
 
-Set these as **scoped** to the right deploy contexts. Only `NEXT_PUBLIC_*` reach
-the browser — everything else stays server-only.
+Context + secret settings matter here — get them wrong and the build fails.
 
-| Variable | Public? | Production | Deploy previews | Notes |
-|---|---|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | yes | `https://<prod-domain>` | preview URL | canonical URL, used by metadata/sitemap |
-| `NEXT_PUBLIC_GOVUK_BOOKING_URL` | yes | `https://www.gov.uk/book-driving-test` | same | |
-| `NEXT_PUBLIC_SUPABASE_URL` | yes | project URL | same | |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | `sb_publishable_…` | same | publishable key |
-| `SUPABASE_URL` | **no** | project URL | same | server-only |
-| `SUPABASE_SERVICE_ROLE_KEY` | **no** | `sb_secret_…` (rotated) | same | bypasses RLS — never expose |
+| Variable | Mark secret? | Deploy contexts | Value |
+|---|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | no | **All** | `https://testslotr.netlify.app` |
+| `NEXT_PUBLIC_GOVUK_BOOKING_URL` | no | **All** | `https://www.gov.uk/book-driving-test` |
+| `NEXT_PUBLIC_SUPABASE_URL` | **no** | **All** | project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **no** | **All** | `sb_publishable_…` |
+| `SUPABASE_URL` | yes | **Production only** | project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | **Production only** | `sb_secret_…` (rotated) |
 
-Remember the **all-or-nothing rule**: set all four Supabase vars together or none
-(partial config throws). See [`lib/supabase/config.ts`](apps/web/lib/supabase/config.ts).
-
-⚠️ **Deploy-preview data caveat:** previews that carry the live env will read/write
-your **production** Supabase. For now that's acceptable; when it matters, point
-previews at a separate Supabase project (or scope the Supabase vars to Production only).
+**Why this split (learned the hard way on the first prod deploy):**
+- `NEXT_PUBLIC_*` are **inlined into the build** and are public by design, so they must
+  be **non-secret** and available in **all contexts**. Marking them secret/scoping them
+  to production starves the build and crashes it.
+- The two real secrets are **Production-only**, so deploy previews never receive them.
+- Live mode is gated on the **server secret** (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`),
+  not the public vars — see [`lib/supabase/config.ts`](apps/web/lib/supabase/config.ts). So
+  previews (no secret) run cleanly in **mock mode**; production runs live. No preview can
+  touch the real database.
 
 ## 3. Supabase Auth URL config
 
