@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   TEST_CENTRES,
   computeCentreStatus,
+  computeDecaysAt,
   computeHeatmap,
   getCentreBySlug,
   screenForScam,
@@ -29,6 +30,7 @@ interface ReportRow {
   confidence: number;
   note: string | null;
   created_at: string;
+  decays_at: string | null;
 }
 
 function mapReport(r: ReportRow): AvailabilityReport {
@@ -141,6 +143,7 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         confidence: 60,
         note: input.note ?? null,
         created_at: now,
+        decays_at: computeDecaysAt(input.type, now),
       };
       const { error } = await client.from("availability_reports").insert(row);
       if (error) throw error;
