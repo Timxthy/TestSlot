@@ -6,6 +6,9 @@
  *
  * Run: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/seed-supabase.mjs
  * Idempotent: clears reports/cancellations and re-seeds; users/profiles upserted.
+ *
+ * LOCAL/DEV ONLY. Refuses to run against the production project (see guard below);
+ * override with ALLOW_PROD_SEED=true only if you truly intend to.
  */
 const SB_URL = process.env.SUPABASE_URL;
 const SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,6 +16,22 @@ if (!SB_URL || !SECRET) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   process.exit(1);
 }
+
+// --- Production safety guard ---
+// This script inserts synthetic accounts/reports/cancellations and is for LOCAL/DEV
+// databases only. It was once run against production by accident, creating dummy
+// users that then received real notification emails. Refuse to run against the
+// production project unless explicitly overridden with ALLOW_PROD_SEED=true.
+const PROD_PROJECT_REF = process.env.PROD_PROJECT_REF || "fnaoxoxaqytxtkouwimt";
+if (SB_URL.includes(PROD_PROJECT_REF) && process.env.ALLOW_PROD_SEED !== "true") {
+  console.error(
+    `Refusing to seed: SUPABASE_URL points at the production project (${PROD_PROJECT_REF}).\n` +
+      "This script inserts synthetic data and must never run against production.\n" +
+      "If you are absolutely sure, re-run with ALLOW_PROD_SEED=true.",
+  );
+  process.exit(1);
+}
+
 const REST = `${SB_URL}/rest/v1`;
 const AUTHA = `${SB_URL}/auth/v1/admin`;
 const h = { apikey: SECRET, Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" };
