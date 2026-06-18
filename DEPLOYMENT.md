@@ -10,14 +10,16 @@ When connecting the repo (Add new site → Import from Git):
 
 | Setting | Value |
 |---|---|
-| Base directory | `apps/web` (set in `netlify.toml`) |
+| Base directory | repo root (no `base` — `pnpm-lock.yaml` lives here) |
 | Build command | `pnpm build` (set in `netlify.toml`) |
+| Publish directory | `apps/web/.next` (set in `netlify.toml`) |
 | Node version | **20** (set via `NODE_VERSION` in `netlify.toml`) |
-| Package manager | pnpm (auto-detected; `ENABLE_COREPACK=true` pins `pnpm@9.15.0`) |
+| Package manager | pnpm (auto-detected from `pnpm-lock.yaml`) |
 | Next.js plugin | `@netlify/plugin-nextjs` (auto-installed + pinned) |
 
-> If the pnpm-workspace install ever fails with `base = "apps/web"`, switch to the
-> root-build fallback documented at the bottom of `netlify.toml`.
+> Build from the repo **root**, not `apps/web` — Netlify must see `pnpm-lock.yaml`
+> at the root to detect pnpm and install the whole workspace. `base = "apps/web"`
+> breaks that and caused the first failed preview build.
 
 ## 2. Environment variables (Netlify UI → Site config → Environment variables)
 
