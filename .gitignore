@@ -25,6 +25,12 @@ npm-debug.log*
 # test/coverage
 coverage/
 
+# playwright e2e
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # editor
 .vscode/
 .idea/
