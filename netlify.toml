@@ -12,12 +12,14 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  # These two are PUBLIC by design (Next inlines NEXT_PUBLIC_* into the browser
-  # bundle; the publishable key + project URL are safe to expose, protected by
-  # RLS). They're flagged only because they're marked "secret" in the Netlify UI,
-  # so tell the secrets scanner they're allowed in output. The real secret
-  # (SUPABASE_SERVICE_ROLE_KEY) is NOT listed here and stays protected.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  # These are PUBLIC by design: the project URL and publishable (anon) key are
+  # safe to expose (protected by RLS) and Next inlines NEXT_PUBLIC_* into the
+  # browser bundle. SUPABASE_URL holds the same public project URL as
+  # NEXT_PUBLIC_SUPABASE_URL, so the scanner sees it in output too. They're only
+  # flagged because they're marked "secret" in the Netlify UI. The one TRUE
+  # secret, SUPABASE_SERVICE_ROLE_KEY, is NOT listed here and stays protected
+  # (it is read server-side at runtime and never appears in build output).
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_URL"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
