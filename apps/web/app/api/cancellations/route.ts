@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cancellationInputSchema } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+  const limited = await checkRateLimit(user.id, "cancellation_posts");
+  if (limited) {
+    return NextResponse.json({ error: limited }, { status: 429 });
   }
   const store = getStore();
   const { flagged } = await store.createCancellation(parsed.data, {
