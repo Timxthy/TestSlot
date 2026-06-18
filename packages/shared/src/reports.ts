@@ -50,6 +50,12 @@ export const DECAY_HOURS: Record<ReportType, number> = {
   other: 12,
 };
 
+/** ISO time a report of this type stops counting, measured from when checked. */
+export function computeDecaysAt(type: ReportType, checkedAt: string | Date = new Date()): string {
+  const base = typeof checkedAt === "string" ? new Date(checkedAt) : checkedAt;
+  return new Date(base.getTime() + DECAY_HOURS[type] * 3_600_000).toISOString();
+}
+
 export interface AvailabilityReport {
   id: string;
   centreSlug: string;

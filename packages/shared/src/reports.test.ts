@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { bandForHour, reportInputSchema } from "./reports";
+import { bandForHour, computeDecaysAt, reportInputSchema } from "./reports";
+
+describe("computeDecaysAt", () => {
+  it("expires by the per-type TTL (PRD §13.2)", () => {
+    const checked = "2026-06-19T10:00:00.000Z";
+    expect(computeDecaysAt("cancellation_seen", checked)).toBe("2026-06-19T11:00:00.000Z"); // 1h
+    expect(computeDecaysAt("no_tests_found", checked)).toBe("2026-06-20T10:00:00.000Z"); // 24h
+  });
+});
 
 describe("bandForHour", () => {
   it("maps hours to time bands", () => {
