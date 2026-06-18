@@ -1,0 +1,17 @@
+# Netlify config — TestSlot Radar (pnpm + Turborepo monorepo).
+#
+# Build from the repo ROOT (no `base`): that's where pnpm-lock.yaml and
+# pnpm-workspace.yaml live, so Netlify detects pnpm and installs the whole
+# workspace (incl. @testslot/shared). We then publish the Next.js output from
+# apps/web. An earlier `base = "apps/web"` config broke pnpm detection because
+# the lockfile isn't in that subdirectory.
+
+[build]
+  command = "pnpm build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
