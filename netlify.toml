@@ -1,26 +1,17 @@
-# Netlify deploy config — TestSlot Radar (pnpm + Turborepo monorepo).
-# The Next.js app lives in apps/web; packages/shared is a workspace dependency.
+# Netlify config — TestSlot Radar (pnpm + Turborepo monorepo).
+#
+# Build from the repo ROOT (no `base`): that's where pnpm-lock.yaml and
+# pnpm-workspace.yaml live, so Netlify detects pnpm and installs the whole
+# workspace (incl. @testslot/shared). We then publish the Next.js output from
+# apps/web. An earlier `base = "apps/web"` config broke pnpm detection because
+# the lockfile isn't in that subdirectory.
 
 [build]
-  # Build from the web app. pnpm resolves the workspace root (pnpm-workspace.yaml)
-  # upward, so `pnpm install` run here installs the whole monorepo and links
-  # @testslot/shared. publish dir is managed by @netlify/plugin-nextjs — leave
-  # it unset unless a build error explicitly asks for one.
-  base = "apps/web"
   command = "pnpm build"
+  publish = "apps/web/.next"
 
 [build.environment]
-  # Match the repo's engines (>=20). Local dev is still on 18; the host must be 20.
   NODE_VERSION = "20"
-  # Honour the pinned pnpm from the root package.json "packageManager" field.
-  ENABLE_COREPACK = "true"
 
-# Netlify auto-installs this when it detects Next.js; pinning it is explicit and safe.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# --- Fallback if the base=apps/web install ever fails on the pnpm workspace ---
-# Remove [build].base above and use instead:
-#   [build]
-#     command = "pnpm install && pnpm --filter web build"
-#     publish = "apps/web/.next"
