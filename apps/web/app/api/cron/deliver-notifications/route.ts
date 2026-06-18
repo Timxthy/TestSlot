@@ -3,6 +3,7 @@ import { getCentreBySlug } from "@testslot/shared";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { isEmailConfigured, sendEmail } from "@/lib/email/resend";
+import { signUnsubscribe } from "@/lib/unsubscribe";
 import { formatDateTime } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 const LOOKBACK_MINUTES = 30;
 const GOVUK_URL =
   process.env.NEXT_PUBLIC_GOVUK_BOOKING_URL ?? "https://www.gov.uk/book-driving-test";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://testslotr.netlify.app";
 
 /** Only the scheduler, holding CRON_SECRET, may trigger delivery. */
 function authorized(request: Request): boolean {
@@ -117,10 +119,19 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const unsubscribeUrl = `${SITE_URL}/api/unsubscribe?u=${encodeURIComponent(signUnsubscribe(userId))}`;
       const result = await sendEmail({
         to: email,
         subject: title,
-        html: `<p>${body}</p><p><a href="${GOVUK_URL}">Check availability on GOV.UK</a></p>`,
+        html:
+          `<p>${body}</p>` +
+          `<p><a href="${GOVUK_URL}">Check availability on GOV.UK</a></p>` +
+          `<hr><p style="font-size:12px;color:#64748b">You’re receiving this because you follow ${centre.name} ` +
+          `on TestSlot Radar. <a href="${unsubscribeUrl}">Unsubscribe from notification emails</a>.</p>`,
+        headers: {
+          "List-Unsubscribe": `<${unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       });
 
       await admin

@@ -21,6 +21,8 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Optional extra email headers, e.g. List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 export type SendResult = { ok: true } | { ok: false; error: string };
@@ -41,6 +43,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
         to: input.to,
         subject: input.subject,
         html: input.html,
+        ...(input.headers ? { headers: input.headers } : {}),
       }),
     });
     if (!res.ok) {
