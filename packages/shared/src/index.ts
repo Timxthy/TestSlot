@@ -5,6 +5,7 @@ export * from "./waitlist";
 export * from "./reports";
 export * from "./status";
 export * from "./trust";
+export * from "./entitlements";
 export * from "./reminders";
 export * from "./cancellations";
 export * from "./notifications";

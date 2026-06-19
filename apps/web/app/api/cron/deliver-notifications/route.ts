@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { type DeliveryStatus, decideDelivery, getCentreBySlug } from "@testslot/shared";
+import {
+  type DeliveryStatus,
+  decideDelivery,
+  getCentreBySlug,
+  shouldDelayDelivery,
+} from "@testslot/shared";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { isEmailConfigured, sendEmail } from "@/lib/email/resend";
@@ -85,8 +90,38 @@ export async function POST(request: Request) {
       String(post.planned_cancel_at),
     )}. No slot is guaranteed — check and book on GOV.UK yourself.`;
 
+    // Recipient tiers, for the free-delay vs premium-instant throttle.
+    const followerIds = (follows ?? []).map((f) => String(f.user_id));
+    const tierByUser = new Map<string, string>();
+    if (followerIds.length > 0) {
+      const { data: subs } = await admin
+        .from("subscriptions")
+        .select("user_id, tier, status")
+        .in("user_id", followerIds);
+      for (const s of subs ?? []) {
+        if (s.status === "active") tierByUser.set(String(s.user_id), String(s.tier));
+      }
+    }
+    const postAgeMin = post.approved_at
+      ? (Date.now() - new Date(String(post.approved_at)).getTime()) / 60_000
+      : Number.POSITIVE_INFINITY;
+
     for (const follow of follows ?? []) {
       const userId = String(follow.user_id);
+
+      // Tier throttle: free recipients wait until the post is past the delay
+      // window; premium/instructor — and any instructor-authored post — are
+      // instant. The next cron run delivers held posts once they're old enough.
+      if (
+        shouldDelayDelivery(
+          tierByUser.get(userId) ?? "free",
+          postAgeMin,
+          Boolean(post.is_instructor),
+        )
+      ) {
+        skipped += 1;
+        continue;
+      }
 
       // Look at any prior delivery for this (user, post, email) to decide whether
       // to send fresh, retry a failed one, or skip an already-sent one.
