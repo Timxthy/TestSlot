@@ -20,6 +20,14 @@ export interface DataStore {
   listReports(slug: string, limit?: number): Promise<AvailabilityReport[]>;
   createReport(input: ReportInput, userId: string): Promise<AvailabilityReport>;
 
+  /** Upsert a user's "still there / not there" confirmation on a report. */
+  confirmReport(reportId: string, userId: string, agrees: boolean): Promise<void>;
+  /** The user's existing confirmations for the given reports, by report id. */
+  getUserConfirmations(
+    userId: string,
+    reportIds: string[],
+  ): Promise<Record<string, boolean>>;
+
   listFollows(userId: string): Promise<string[]>;
   follow(userId: string, slug: string): Promise<void>;
   unfollow(userId: string, slug: string): Promise<void>;

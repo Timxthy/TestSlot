@@ -191,6 +191,34 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
       return mapReport(row);
     },
 
+    async confirmReport(reportId: string, userId: string, agrees: boolean): Promise<void> {
+      const { error } = await client
+        .from("report_confirmations")
+        .upsert(
+          { report_id: reportId, user_id: userId, agrees },
+          { onConflict: "report_id,user_id" },
+        );
+      if (error) throw error;
+    },
+
+    async getUserConfirmations(
+      userId: string,
+      reportIds: string[],
+    ): Promise<Record<string, boolean>> {
+      if (reportIds.length === 0) return {};
+      const { data, error } = await client
+        .from("report_confirmations")
+        .select("report_id, agrees")
+        .eq("user_id", userId)
+        .in("report_id", reportIds);
+      if (error) throw error;
+      const out: Record<string, boolean> = {};
+      for (const row of data as { report_id: string; agrees: boolean }[]) {
+        out[row.report_id] = row.agrees;
+      }
+      return out;
+    },
+
     async listFollows(userId: string): Promise<string[]> {
       const { data, error } = await client
         .from("user_centres")

@@ -27,6 +27,10 @@ export default async function AppCentrePage({
     store.listReports(centre.slug, 12),
     store.listFollows(user.id),
   ]);
+  const confirmations = await store.getUserConfirmations(
+    user.id,
+    reports.map((r) => r.id),
+  );
   const nearby = getNearbyCentres(centre);
 
   return (
@@ -75,7 +79,7 @@ export default async function AppCentrePage({
           <div className="card p-5">
             <h2 className="text-lg">Recent reports</h2>
             <div className="mt-2">
-              <ReportFeed reports={reports} />
+              <ReportFeed reports={reports} confirmations={confirmations} />
             </div>
           </div>
         </div>
