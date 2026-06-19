@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCentreBySlug } from "@testslot/shared";
+import { type DeliveryStatus, decideDelivery, getCentreBySlug } from "@testslot/shared";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { isEmailConfigured, sendEmail } from "@/lib/email/resend";
@@ -54,11 +54,13 @@ export async function POST(request: Request) {
 
   const { data: posts, error: postsErr } = await admin
     .from("cancellation_posts")
-    .select("id, centre_slug, is_instructor, planned_cancel_at, created_at")
+    .select("id, centre_slug, is_instructor, planned_cancel_at, approved_at")
     .eq("moderation_status", "approved")
     .eq("status", "active")
     .gt("expires_at", nowIso)
-    .gte("created_at", sinceIso);
+    // Filter on approval time, not creation time, so posts approved by a
+    // moderator long after they were created still get delivered.
+    .gte("approved_at", sinceIso);
   if (postsErr) {
     return NextResponse.json({ error: postsErr.message }, { status: 500 });
   }
@@ -86,26 +88,56 @@ export async function POST(request: Request) {
     for (const follow of follows ?? []) {
       const userId = String(follow.user_id);
 
-      // Dedupe: the unique index (user_id, cancellation_post_id, channel) turns
-      // a repeat insert into error code 23505, which we treat as "already sent".
-      const { data: inserted, error: insErr } = await admin
+      // Look at any prior delivery for this (user, post, email) to decide whether
+      // to send fresh, retry a failed one, or skip an already-sent one.
+      const { data: existing } = await admin
         .from("notification_deliveries")
-        .insert({
-          user_id: userId,
-          centre_slug: post.centre_slug,
-          cancellation_post_id: post.id,
-          channel: "email",
-          status: "pending",
-          title,
-          body,
-        })
-        .select("id")
+        .select("id, status, attempts")
+        .eq("user_id", userId)
+        .eq("cancellation_post_id", post.id)
+        .eq("channel", "email")
         .maybeSingle();
-      if (insErr || !inserted?.id) {
-        skipped += 1; // unique violation (already delivered) or insert failure
+
+      const decision = decideDelivery(
+        existing
+          ? { status: existing.status as DeliveryStatus, attempts: Number(existing.attempts) }
+          : null,
+      );
+      if (decision === "skip") {
+        skipped += 1;
         continue;
       }
-      const deliveryId = String(inserted.id);
+
+      let deliveryId: string;
+      if (decision === "retry") {
+        deliveryId = String(existing!.id);
+        await admin
+          .from("notification_deliveries")
+          .update({ status: "pending", attempts: Number(existing!.attempts) + 1, error: null })
+          .eq("id", deliveryId);
+      } else {
+        // send_new. A concurrent run may have inserted first (unique index) — if
+        // so the insert fails and we skip, letting that run own the delivery.
+        const { data: inserted, error: insErr } = await admin
+          .from("notification_deliveries")
+          .insert({
+            user_id: userId,
+            centre_slug: post.centre_slug,
+            cancellation_post_id: post.id,
+            channel: "email",
+            status: "pending",
+            title,
+            body,
+            attempts: 1,
+          })
+          .select("id")
+          .maybeSingle();
+        if (insErr || !inserted?.id) {
+          skipped += 1;
+          continue;
+        }
+        deliveryId = String(inserted.id);
+      }
       queued += 1;
 
       const { data: userRes } = await admin.auth.admin.getUserById(userId);

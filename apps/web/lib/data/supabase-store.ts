@@ -340,6 +340,9 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         note: input.note ?? null,
         status: "active",
         moderation_status: flagged ? "pending" : "approved",
+        // Auto-approved posts are deliverable immediately; flagged ones get
+        // approved_at when a moderator clears them (see setCancellationModeration).
+        approved_at: flagged ? null : now.toISOString(),
         created_at: now.toISOString(),
         expires_at: new Date(new Date(input.plannedCancelAt).getTime() + 60 * 60_000).toISOString(),
       };
@@ -362,9 +365,12 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
       id: string,
       status: "approved" | "rejected",
     ): Promise<void> {
+      const update: Record<string, unknown> = { moderation_status: status };
+      // Stamp approval time so the delivery cron picks up late approvals.
+      if (status === "approved") update.approved_at = new Date().toISOString();
       const { error } = await client
         .from("cancellation_posts")
-        .update({ moderation_status: status })
+        .update(update)
         .eq("id", id);
       if (error) throw error;
     },
