@@ -41,6 +41,15 @@ export interface DataStore {
   /** Store a browser web-push subscription for this user (deduped by endpoint). */
   saveDeviceToken(userId: string, subscription: unknown, endpoint: string): Promise<void>;
 
+  /** GDPR DSAR: everything we hold about this user, for export. */
+  exportUserData(userId: string): Promise<Record<string, unknown>>;
+  /**
+   * GDPR erasure: remove the user's PII and account, anonymising authorship so
+   * aggregates (centre status/heatmap) stay intact. Does not touch the auth
+   * identity — the caller deletes that separately.
+   */
+  deleteUserData(userId: string): Promise<void>;
+
   listCancellations(slug?: string): Promise<CancellationPost[]>;
   createCancellation(
     input: CancellationInput,

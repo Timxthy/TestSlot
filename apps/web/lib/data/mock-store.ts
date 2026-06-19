@@ -158,6 +158,32 @@ class MockStore implements DataStore {
     else this.deviceTokens.push({ userId, endpoint, subscription });
   }
 
+  async exportUserData(userId: string): Promise<Record<string, unknown>> {
+    return {
+      exportedAt: new Date().toISOString(),
+      profile: { id: userId },
+      follows: [...(this.follows.get(userId) ?? [])],
+      reports: this.reports.filter((r) => r.userId === userId),
+      cancellations: this.cancellations.filter((c) => c.userId === userId),
+      confirmations: this.confirmations.filter((c) => c.userId === userId),
+      reminderPreferences: this.reminderPrefs.get(userId) ?? null,
+      deviceTokens: this.deviceTokens.filter((t) => t.userId === userId),
+      notificationDeliveries: [],
+    };
+  }
+
+  async deleteUserData(userId: string): Promise<void> {
+    // Anonymise authorship so aggregates survive, then drop PII.
+    for (const r of this.reports) {
+      if (r.userId === userId) r.userId = `anon-${randomUUID()}`;
+    }
+    this.cancellations = this.cancellations.filter((c) => c.userId !== userId);
+    this.confirmations = this.confirmations.filter((c) => c.userId !== userId);
+    this.deviceTokens = this.deviceTokens.filter((t) => t.userId !== userId);
+    this.follows.delete(userId);
+    this.reminderPrefs.delete(userId);
+  }
+
   async listCancellations(slug?: string): Promise<CancellationPost[]> {
     const now = Date.now();
     return this.cancellations

@@ -249,6 +249,56 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
       if (error) throw error;
     },
 
+    async exportUserData(userId: string): Promise<Record<string, unknown>> {
+      const pick = async (table: string, column: string) => {
+        const { data } = await client.from(table).select("*").eq(column, userId);
+        return data ?? [];
+      };
+      const { data: profile } = await client
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+      const [
+        follows,
+        reports,
+        cancellations,
+        confirmations,
+        reminderPreferences,
+        deviceTokens,
+        notificationDeliveries,
+      ] = await Promise.all([
+        pick("user_centres", "user_id"),
+        pick("availability_reports", "user_id"),
+        pick("cancellation_posts", "user_id"),
+        pick("report_confirmations", "user_id"),
+        pick("reminder_preferences", "user_id"),
+        pick("device_tokens", "user_id"),
+        pick("notification_deliveries", "user_id"),
+      ]);
+      return {
+        exportedAt: new Date().toISOString(),
+        profile,
+        follows,
+        reports,
+        cancellations,
+        confirmations,
+        reminderPreferences,
+        deviceTokens,
+        notificationDeliveries,
+      };
+    },
+
+    async deleteUserData(userId: string): Promise<void> {
+      // Deleting the profile SET-NULLs availability_reports.user_id (the reports
+      // survive, anonymised, so centre status/heatmap are unaffected) and cascades
+      // follows / confirmations / reminder prefs / device tokens / deliveries /
+      // cancellation posts. Requires the service-role client (no client DELETE
+      // policy on profiles).
+      const { error } = await client.from("profiles").delete().eq("id", userId);
+      if (error) throw error;
+    },
+
     async getReminderPreferences(userId: string): Promise<ReminderPreferences> {
       const { data, error } = await client
         .from("reminder_preferences")
