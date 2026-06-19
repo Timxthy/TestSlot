@@ -2,9 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   TEST_CENTRES,
-  computeCentreStatus,
+  TIME_BANDS,
   computeDecaysAt,
-  computeHeatmap,
   getCentreBySlug,
   screenForScam,
   type AvailabilityReport,
@@ -14,10 +13,22 @@ import {
   type HeatmapResult,
   type ReportInput,
   type TestCentre,
+  type TimeBand,
 } from "@testslot/shared";
 import type { DataStore } from "./store";
 
-const DAY = 86_400_000;
+/** Shape of a centre with no durable status row yet (matches an empty compute). */
+const EMPTY_STATUS: CentreStatusResult = {
+  status: "unclear",
+  confidence: 0,
+  metrics: {
+    availabilityReports24h: 0,
+    uniqueReporters24h: 0,
+    noTestReports3d: 0,
+    lastReportAt: null,
+    totalReports7d: 0,
+  },
+};
 
 interface ReportRow {
   id: string;
@@ -48,6 +59,23 @@ function mapReport(r: ReportRow): AvailabilityReport {
   };
 }
 
+interface CentreStatusRow {
+  centre_slug: string;
+  status: CentreStatusResult["status"];
+  confidence: number;
+  metrics: CentreStatusResult["metrics"];
+}
+
+function mapStatus(r: CentreStatusRow): CentreStatusResult {
+  return { status: r.status, confidence: r.confidence, metrics: r.metrics };
+}
+
+interface HeatmapCellRow {
+  dow: number;
+  time_band: string;
+  report_count: number;
+}
+
 function mapCancellation(r: Record<string, unknown>): CancellationPost {
   return {
     id: String(r.id),
@@ -71,18 +99,6 @@ function mapCancellation(r: Record<string, unknown>): CancellationPost {
  * service-role client (bypasses RLS) for admin/moderation.
  */
 export function createSupabaseStore(client: SupabaseClient): DataStore {
-  async function reportsSince(slug: string, sinceMs: number): Promise<AvailabilityReport[]> {
-    const since = new Date(Date.now() - sinceMs).toISOString();
-    const { data, error } = await client
-      .from("availability_reports")
-      .select("*")
-      .eq("centre_slug", slug)
-      .gte("checked_at", since)
-      .order("checked_at", { ascending: false });
-    if (error) throw error;
-    return (data as ReportRow[]).map(mapReport);
-  }
-
   return {
     async listCentres(): Promise<TestCentre[]> {
       return TEST_CENTRES;
@@ -91,32 +107,57 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
       return getCentreBySlug(slug);
     },
 
+    // Status + heatmap read the durable engine tables (written by pg_cron),
+    // never aggregating raw reports per request (PRD §7.6, migration 0005).
     async getCentreStatus(slug: string): Promise<CentreStatusResult> {
-      return computeCentreStatus(await reportsSince(slug, 7 * DAY));
+      const { data, error } = await client
+        .from("centre_status")
+        .select("centre_slug, status, confidence, metrics")
+        .eq("centre_slug", slug)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapStatus(data as CentreStatusRow) : EMPTY_STATUS;
     },
 
     async listCentreStatuses(): Promise<Record<string, CentreStatusResult>> {
-      const since = new Date(Date.now() - 7 * DAY).toISOString();
       const { data, error } = await client
-        .from("availability_reports")
-        .select("*")
-        .gte("checked_at", since);
+        .from("centre_status")
+        .select("centre_slug, status, confidence, metrics");
       if (error) throw error;
-      const byCentre = new Map<string, AvailabilityReport[]>();
-      for (const r of (data as ReportRow[]).map(mapReport)) {
-        const list = byCentre.get(r.centreSlug) ?? [];
-        list.push(r);
-        byCentre.set(r.centreSlug, list);
+      const byCentre = new Map<string, CentreStatusResult>();
+      for (const row of data as CentreStatusRow[]) {
+        byCentre.set(row.centre_slug, mapStatus(row));
       }
       const out: Record<string, CentreStatusResult> = {};
       for (const centre of TEST_CENTRES) {
-        out[centre.slug] = computeCentreStatus(byCentre.get(centre.slug) ?? []);
+        out[centre.slug] = byCentre.get(centre.slug) ?? EMPTY_STATUS;
       }
       return out;
     },
 
     async getHeatmap(slug: string): Promise<HeatmapResult> {
-      return computeHeatmap(await reportsSince(slug, 14 * DAY));
+      const { data, error } = await client
+        .from("centre_heatmap")
+        .select("dow, time_band, report_count")
+        .eq("centre_slug", slug);
+      if (error) throw error;
+
+      const counts = new Map<string, number>();
+      let max = 0;
+      for (const row of data as HeatmapCellRow[]) {
+        if (!TIME_BANDS.includes(row.time_band as TimeBand)) continue;
+        const key = `${row.dow}:${row.time_band}`;
+        const next = (counts.get(key) ?? 0) + row.report_count;
+        counts.set(key, next);
+        if (next > max) max = next;
+      }
+      const cells: { day: number; band: TimeBand; count: number }[] = [];
+      for (let day = 0; day < 7; day++) {
+        for (const band of TIME_BANDS) {
+          cells.push({ day, band, count: counts.get(`${day}:${band}`) ?? 0 });
+        }
+      }
+      return { cells, max };
     },
 
     async listReports(slug: string, limit = 20): Promise<AvailabilityReport[]> {
