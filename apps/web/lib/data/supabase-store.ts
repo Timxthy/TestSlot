@@ -299,6 +299,17 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
       if (error) throw error;
     },
 
+    async getSubscriptionTier(userId: string): Promise<string> {
+      const { data, error } = await client
+        .from("subscriptions")
+        .select("tier, status")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data || data.status !== "active") return "free";
+      return String(data.tier);
+    },
+
     async getReminderPreferences(userId: string): Promise<ReminderPreferences> {
       const { data, error } = await client
         .from("reminder_preferences")

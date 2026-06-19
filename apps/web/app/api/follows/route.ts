@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { entitlementsForTier } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
 
@@ -22,8 +23,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
   const store = getStore();
-  if (action === "follow") await store.follow(user.id, slug);
-  else await store.unfollow(user.id, slug);
+  if (action === "follow") {
+    // Entitlement gate: cap how many centres a user can follow by tier.
+    const [tier, current] = await Promise.all([
+      store.getSubscriptionTier(user.id),
+      store.listFollows(user.id),
+    ]);
+    const limit = entitlementsForTier(tier).followLimit;
+    if (!current.includes(slug) && current.length >= limit) {
+      return NextResponse.json(
+        {
+          error: `Your plan lets you follow up to ${limit} centres. Upgrade to follow more.`,
+          code: "follow_limit",
+        },
+        { status: 403 },
+      );
+    }
+    await store.follow(user.id, slug);
+  } else {
+    await store.unfollow(user.id, slug);
+  }
 
   return NextResponse.json({ ok: true });
 }

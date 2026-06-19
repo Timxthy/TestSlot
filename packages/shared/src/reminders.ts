@@ -54,3 +54,28 @@ export function dueSlots(
     return m !== null && nowMinutes >= m && nowMinutes < m + windowMins;
   });
 }
+
+/** Hostnames of the real browser push services we deliver to. */
+export const PUSH_HOST_SUFFIXES = [
+  "fcm.googleapis.com", // Chrome / Chromium / Edge
+  "push.services.mozilla.com", // Firefox
+  "notify.windows.com", // legacy Windows/Edge
+  "push.apple.com", // Safari
+];
+
+/**
+ * SSRF guard for stored push subscriptions: the cron later makes server-side
+ * requests to these endpoints, so only accept HTTPS URLs on a known push host —
+ * never localhost / private / arbitrary endpoints.
+ */
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
+}

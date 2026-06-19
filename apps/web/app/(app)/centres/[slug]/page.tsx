@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { COMMUNITY_DATA_LABEL, getNearbyCentres } from "@testslot/shared";
+import { COMMUNITY_DATA_LABEL, entitlementsForTier, getNearbyCentres } from "@testslot/shared";
 import { requireUser } from "@/lib/auth";
 import { getServiceStore } from "@/lib/data";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -21,16 +21,18 @@ export default async function AppCentrePage({
   if (!centre) notFound();
 
   const user = await requireUser();
-  const [status, heatmap, reports, follows] = await Promise.all([
+  const [status, heatmap, reports, follows, tier] = await Promise.all([
     store.getCentreStatus(centre.slug),
     store.getHeatmap(centre.slug),
     store.listReports(centre.slug, 12),
     store.listFollows(user.id),
+    store.getSubscriptionTier(user.id),
   ]);
   const confirmations = await store.getUserConfirmations(
     user.id,
     reports.map((r) => r.id),
   );
+  const canSeeHeatmap = entitlementsForTier(tier).heatmapAccess;
   const nearby = getNearbyCentres(centre);
 
   return (
@@ -72,7 +74,17 @@ export default async function AppCentrePage({
           <div className="card p-5">
             <h2 className="text-lg">When tests have appeared</h2>
             <div className="mt-4">
-              <Heatmap data={heatmap} />
+              {canSeeHeatmap ? (
+                <Heatmap data={heatmap} />
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+                  <p className="text-sm font-medium text-ink">Premium feature</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    The availability heatmap — the busiest days and times for
+                    community-reported slots — is part of premium.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

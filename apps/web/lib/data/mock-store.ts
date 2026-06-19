@@ -121,6 +121,10 @@ class MockStore implements DataStore {
     this.follows.get(userId)?.delete(slug);
   }
 
+  async getSubscriptionTier(_userId: string): Promise<string> {
+    return "free";
+  }
+
   async getReminderPreferences(userId: string): Promise<ReminderPreferences> {
     return (
       this.reminderPrefs.get(userId) ?? {

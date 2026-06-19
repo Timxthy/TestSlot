@@ -33,6 +33,9 @@ export interface DataStore {
   follow(userId: string, slug: string): Promise<void>;
   unfollow(userId: string, slug: string): Promise<void>;
 
+  /** The user's active subscription tier ("free" if none / inactive). */
+  getSubscriptionTier(userId: string): Promise<string>;
+
   getReminderPreferences(userId: string): Promise<ReminderPreferences>;
   saveReminderPreferences(
     userId: string,

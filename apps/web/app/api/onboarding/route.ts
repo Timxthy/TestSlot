@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isKnownCentre } from "@testslot/shared";
+import { entitlementsForTier, isKnownCentre } from "@testslot/shared";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -45,7 +45,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const centres = parsed.data.centres ?? [];
+  // Enforce the follow limit by tier here too (a new user is free → 3), so
+  // onboarding can't be used to bypass the cap the /api/follows route applies.
+  const { data: sub } = await admin
+    .from("subscriptions")
+    .select("tier, status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const tier = sub && sub.status === "active" ? String(sub.tier) : "free";
+  const limit = entitlementsForTier(tier).followLimit;
+
+  const centres = (parsed.data.centres ?? []).slice(0, limit);
   if (centres.length > 0) {
     const { error: followError } = await admin
       .from("user_centres")

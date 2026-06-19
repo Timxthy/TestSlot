@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dueSlots,
+  isAllowedPushEndpoint,
   isValidReminderTime,
   normaliseReminderTimes,
   parseHHMM,
@@ -49,5 +50,25 @@ describe("dueSlots", () => {
   it("matches only the relevant slot", () => {
     expect(dueSlots(times, parseHHMM("12:35")!)).toEqual(["12:30"]);
     expect(dueSlots(times, parseHHMM("20:30")!)).toEqual(["20:30"]);
+  });
+});
+
+describe("isAllowedPushEndpoint", () => {
+  it("accepts known push services over HTTPS", () => {
+    expect(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/abc")).toBe(true);
+    expect(
+      isAllowedPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/xyz"),
+    ).toBe(true);
+    expect(isAllowedPushEndpoint("https://web.push.apple.com/abc")).toBe(true);
+  });
+
+  it("rejects non-HTTPS, private, and arbitrary hosts (SSRF guard)", () => {
+    expect(isAllowedPushEndpoint("http://fcm.googleapis.com/x")).toBe(false);
+    expect(isAllowedPushEndpoint("https://localhost/x")).toBe(false);
+    expect(isAllowedPushEndpoint("https://169.254.169.254/latest/meta-data")).toBe(false);
+    expect(isAllowedPushEndpoint("https://evil.example.com/x")).toBe(false);
+    expect(isAllowedPushEndpoint("not a url")).toBe(false);
+    // suffix-spoofing must not pass
+    expect(isAllowedPushEndpoint("https://fcm.googleapis.com.evil.com/x")).toBe(false);
   });
 });
