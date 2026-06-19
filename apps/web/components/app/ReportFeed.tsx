@@ -1,9 +1,11 @@
 import {
+  AVAILABILITY_TYPES,
   REPORT_TYPE_LABELS,
   type AvailabilityReport,
   type ReportType,
 } from "@testslot/shared";
 import { formatMonth, timeAgo } from "@/lib/format";
+import { ConfirmControl } from "./ConfirmControl";
 
 const typeTone: Record<ReportType, string> = {
   tests_available: "bg-emerald-50 text-emerald-700",
@@ -14,7 +16,13 @@ const typeTone: Record<ReportType, string> = {
   other: "bg-slate-100 text-slate-600",
 };
 
-export function ReportFeed({ reports }: { reports: AvailabilityReport[] }) {
+export function ReportFeed({
+  reports,
+  confirmations = {},
+}: {
+  reports: AvailabilityReport[];
+  confirmations?: Record<string, boolean>;
+}) {
   if (reports.length === 0) {
     return <p className="text-sm text-slate-500">No reports yet for this centre.</p>;
   }
@@ -32,7 +40,12 @@ export function ReportFeed({ reports }: { reports: AvailabilityReport[] }) {
               </span>
             ) : null}
           </div>
-          <span className="shrink-0 text-xs text-slate-400">{timeAgo(r.checkedAt)}</span>
+          <div className="flex shrink-0 items-center gap-3">
+            {AVAILABILITY_TYPES.includes(r.type) ? (
+              <ConfirmControl reportId={r.id} initial={confirmations[r.id]} />
+            ) : null}
+            <span className="text-xs text-slate-400">{timeAgo(r.checkedAt)}</span>
+          </div>
         </li>
       ))}
     </ul>

@@ -22,6 +22,7 @@ class MockStore implements DataStore {
   private follows = new Map<string, Set<string>>([
     ["demo-user", new Set(["high-wycombe", "aylesbury", "slough", "reading"])],
   ]);
+  private confirmations: { reportId: string; userId: string; agrees: boolean }[] = [];
 
   async listCentres(): Promise<TestCentre[]> {
     return TEST_CENTRES;
@@ -73,6 +74,26 @@ class MockStore implements DataStore {
     };
     this.reports.push(report);
     return report;
+  }
+
+  async confirmReport(reportId: string, userId: string, agrees: boolean): Promise<void> {
+    const existing = this.confirmations.find(
+      (c) => c.reportId === reportId && c.userId === userId,
+    );
+    if (existing) existing.agrees = agrees;
+    else this.confirmations.push({ reportId, userId, agrees });
+  }
+
+  async getUserConfirmations(
+    userId: string,
+    reportIds: string[],
+  ): Promise<Record<string, boolean>> {
+    const ids = new Set(reportIds);
+    const out: Record<string, boolean> = {};
+    for (const c of this.confirmations) {
+      if (c.userId === userId && ids.has(c.reportId)) out[c.reportId] = c.agrees;
+    }
+    return out;
   }
 
   async listFollows(userId: string): Promise<string[]> {

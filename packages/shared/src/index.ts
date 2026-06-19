@@ -4,5 +4,6 @@ export * from "./centres";
 export * from "./waitlist";
 export * from "./reports";
 export * from "./status";
+export * from "./trust";
 export * from "./cancellations";
 export * from "./notifications";
