@@ -3,6 +3,7 @@ import { cancellationInputSchema } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { recordContentFlag } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -31,10 +32,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: limited }, { status: 429 });
   }
   const store = getStore();
-  const { flagged } = await store.createCancellation(parsed.data, {
+  const { post, flagged } = await store.createCancellation(parsed.data, {
     id: user.id,
     name: user.name,
     isInstructor: user.isInstructor,
   });
+  if (flagged) {
+    await recordContentFlag({
+      contentType: "cancellation_post",
+      contentId: post.id,
+      ruleMatched: "scam phrase",
+      severity: "medium",
+      autoAction: "pending_review",
+    });
+  }
   return NextResponse.json({ ok: true, flagged }, { status: 201 });
 }

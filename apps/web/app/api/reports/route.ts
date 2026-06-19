@@ -3,6 +3,7 @@ import { reportInputSchema, screenForScam } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { recordContentFlag } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -23,11 +24,20 @@ export async function POST(request: Request) {
   }
 
   // Notes must not carry scam/broker language (parity with the cancellation board).
-  if (parsed.data.note && screenForScam(parsed.data.note).flagged) {
-    return NextResponse.json(
-      { error: "That note looks like it mentions payment or personal details. Please remove it." },
-      { status: 422 },
-    );
+  if (parsed.data.note) {
+    const scam = screenForScam(parsed.data.note);
+    if (scam.flagged) {
+      await recordContentFlag({
+        contentType: "availability_report",
+        ruleMatched: scam.matched.join(", "),
+        severity: "high",
+        autoAction: "blocked",
+      });
+      return NextResponse.json(
+        { error: "That note looks like it mentions payment or personal details. Please remove it." },
+        { status: 422 },
+      );
+    }
   }
 
   const user = await getCurrentUser();

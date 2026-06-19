@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isModerator } from "@/lib/auth";
 import { getServiceStore } from "@/lib/data";
+import { recordModerationAction } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
+  const decision = action === "approve" ? "approved" : "rejected";
   const store = getServiceStore();
-  await store.setCancellationModeration(id, action === "approve" ? "approved" : "rejected");
+  await store.setCancellationModeration(id, decision);
+  await recordModerationAction({
+    moderatorId: user.id,
+    targetType: "cancellation_post",
+    targetId: id,
+    action: decision,
+  });
   return NextResponse.json({ ok: true });
 }
