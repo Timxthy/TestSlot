@@ -99,10 +99,18 @@ export default async function DashboardPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="text-xl">Check reminders</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl">Check reminders</h2>
+          <Link href="/settings" className="text-sm font-semibold text-brand-700">
+            Manage
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-slate-600">
-          We’ll nudge you to check GOV.UK yourself at these times. (Push delivery
-          arrives with the mobile app.)
+          We’ll nudge you to check GOV.UK yourself at these times. Turn on push in{" "}
+          <Link href="/settings" className="font-medium text-brand-700 hover:underline">
+            reminder settings
+          </Link>
+          .
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {REMINDERS.map((r) => (

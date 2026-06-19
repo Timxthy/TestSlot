@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DEFAULT_REMINDER_TIMES,
+  DEFAULT_TIMEZONE,
   TEST_CENTRES,
   TIME_BANDS,
   computeDecaysAt,
   getCentreBySlug,
+  normaliseReminderTimes,
   screenForScam,
   type AvailabilityReport,
   type CancellationInput,
   type CancellationPost,
   type CentreStatusResult,
   type HeatmapResult,
+  type ReminderPreferences,
   type ReportInput,
   type TestCentre,
   type TimeBand,
@@ -242,6 +246,66 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         .delete()
         .eq("user_id", userId)
         .eq("centre_slug", slug);
+      if (error) throw error;
+    },
+
+    async getReminderPreferences(userId: string): Promise<ReminderPreferences> {
+      const { data, error } = await client
+        .from("reminder_preferences")
+        .select("times, timezone, enabled, channels")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        return {
+          times: DEFAULT_REMINDER_TIMES,
+          timezone: DEFAULT_TIMEZONE,
+          enabled: true,
+          channels: ["web_push"],
+        };
+      }
+      return data as ReminderPreferences;
+    },
+
+    async saveReminderPreferences(
+      userId: string,
+      input: { times: string[]; enabled: boolean },
+    ): Promise<ReminderPreferences> {
+      const prefs = {
+        user_id: userId,
+        times: normaliseReminderTimes(input.times),
+        enabled: input.enabled,
+        timezone: DEFAULT_TIMEZONE,
+        channels: ["web_push"],
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await client
+        .from("reminder_preferences")
+        .upsert(prefs, { onConflict: "user_id" });
+      if (error) throw error;
+      return {
+        times: prefs.times,
+        timezone: prefs.timezone,
+        enabled: prefs.enabled,
+        channels: prefs.channels,
+      };
+    },
+
+    async saveDeviceToken(
+      userId: string,
+      subscription: unknown,
+      endpoint: string,
+    ): Promise<void> {
+      const { error } = await client.from("device_tokens").upsert(
+        {
+          user_id: userId,
+          subscription,
+          endpoint,
+          platform: "web",
+          last_used_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,endpoint" },
+      );
       if (error) throw error;
     },
 
