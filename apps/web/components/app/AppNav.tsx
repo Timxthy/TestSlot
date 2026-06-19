@@ -7,6 +7,7 @@ const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/report", label: "Submit report" },
   { href: "/cancellations", label: "Cancellations" },
+  { href: "/settings", label: "Reminders" },
   { href: "/admin", label: "Admin" },
 ];
 

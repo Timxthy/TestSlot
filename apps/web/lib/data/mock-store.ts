@@ -1,15 +1,19 @@
 import { randomUUID } from "node:crypto";
 import {
+  DEFAULT_REMINDER_TIMES,
+  DEFAULT_TIMEZONE,
   TEST_CENTRES,
   computeCentreStatus,
   computeHeatmap,
   getCentreBySlug,
+  normaliseReminderTimes,
   screenForScam,
   type AvailabilityReport,
   type CancellationInput,
   type CancellationPost,
   type CentreStatusResult,
   type HeatmapResult,
+  type ReminderPreferences,
   type ReportInput,
   type TestCentre,
 } from "@testslot/shared";
@@ -23,6 +27,8 @@ class MockStore implements DataStore {
     ["demo-user", new Set(["high-wycombe", "aylesbury", "slough", "reading"])],
   ]);
   private confirmations: { reportId: string; userId: string; agrees: boolean }[] = [];
+  private reminderPrefs = new Map<string, ReminderPreferences>();
+  private deviceTokens: { userId: string; endpoint: string; subscription: unknown }[] = [];
 
   async listCentres(): Promise<TestCentre[]> {
     return TEST_CENTRES;
@@ -113,6 +119,43 @@ class MockStore implements DataStore {
 
   async unfollow(userId: string, slug: string): Promise<void> {
     this.follows.get(userId)?.delete(slug);
+  }
+
+  async getReminderPreferences(userId: string): Promise<ReminderPreferences> {
+    return (
+      this.reminderPrefs.get(userId) ?? {
+        times: DEFAULT_REMINDER_TIMES,
+        timezone: DEFAULT_TIMEZONE,
+        enabled: true,
+        channels: ["web_push"],
+      }
+    );
+  }
+
+  async saveReminderPreferences(
+    userId: string,
+    input: { times: string[]; enabled: boolean },
+  ): Promise<ReminderPreferences> {
+    const prefs: ReminderPreferences = {
+      times: normaliseReminderTimes(input.times),
+      timezone: DEFAULT_TIMEZONE,
+      enabled: input.enabled,
+      channels: ["web_push"],
+    };
+    this.reminderPrefs.set(userId, prefs);
+    return prefs;
+  }
+
+  async saveDeviceToken(
+    userId: string,
+    subscription: unknown,
+    endpoint: string,
+  ): Promise<void> {
+    const existing = this.deviceTokens.find(
+      (t) => t.userId === userId && t.endpoint === endpoint,
+    );
+    if (existing) existing.subscription = subscription;
+    else this.deviceTokens.push({ userId, endpoint, subscription });
   }
 
   async listCancellations(slug?: string): Promise<CancellationPost[]> {

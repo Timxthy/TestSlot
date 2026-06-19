@@ -4,6 +4,7 @@ import type {
   CancellationPost,
   CentreStatusResult,
   HeatmapResult,
+  ReminderPreferences,
   ReportInput,
   TestCentre,
 } from "@testslot/shared";
@@ -31,6 +32,14 @@ export interface DataStore {
   listFollows(userId: string): Promise<string[]>;
   follow(userId: string, slug: string): Promise<void>;
   unfollow(userId: string, slug: string): Promise<void>;
+
+  getReminderPreferences(userId: string): Promise<ReminderPreferences>;
+  saveReminderPreferences(
+    userId: string,
+    input: { times: string[]; enabled: boolean },
+  ): Promise<ReminderPreferences>;
+  /** Store a browser web-push subscription for this user (deduped by endpoint). */
+  saveDeviceToken(userId: string, subscription: unknown, endpoint: string): Promise<void>;
 
   listCancellations(slug?: string): Promise<CancellationPost[]>;
   createCancellation(
