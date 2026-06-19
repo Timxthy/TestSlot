@@ -31,6 +31,17 @@ export async function POST(request: Request) {
 
   // getStore() is the session-scoped client, so RLS enforces insert/update-own.
   const store = getStore();
-  await store.confirmReport(parsed.data.reportId, user.id, parsed.data.agrees);
+  try {
+    await store.confirmReport(parsed.data.reportId, user.id, parsed.data.agrees);
+  } catch (err) {
+    // A DB trigger rejects confirming your own report (anti-gaming).
+    if (err instanceof Error && /own report/i.test(err.message)) {
+      return NextResponse.json(
+        { error: "You can't confirm your own report." },
+        { status: 422 },
+      );
+    }
+    throw err;
+  }
   return NextResponse.json({ ok: true });
 }

@@ -16,6 +16,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid body." }, { status: 400 });
   }
 
+  // Authenticate first — an unauthenticated request must never reach the scam
+  // filter (which writes content_flags via the service role) or any other work.
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+
   const parsed = reportInputSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -34,16 +41,17 @@ export async function POST(request: Request) {
         severity: "high",
         autoAction: "blocked",
       });
+      await auditLog({
+        actorId: user.id,
+        action: "report_scam_blocked",
+        targetType: "availability_report",
+        metadata: { matched: scam.matched },
+      });
       return NextResponse.json(
         { error: "That note looks like it mentions payment or personal details. Please remove it." },
         { status: 422 },
       );
     }
-  }
-
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
   const limited = await checkRateLimit(user.id, "availability_reports");

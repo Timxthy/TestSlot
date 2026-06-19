@@ -77,6 +77,11 @@ class MockStore implements DataStore {
   }
 
   async confirmReport(reportId: string, userId: string, agrees: boolean): Promise<void> {
+    // Parity with the DB trigger: a user can't confirm their own report.
+    const report = this.reports.find((r) => r.id === reportId);
+    if (report && report.userId === userId) {
+      throw new Error("cannot confirm your own report");
+    }
     const existing = this.confirmations.find(
       (c) => c.reportId === reportId && c.userId === userId,
     );
