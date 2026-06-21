@@ -5,6 +5,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { auditLog } from "@/lib/audit";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,7 @@ export async function POST() {
     targetId: user.id,
     metadata: { self: true },
   });
+  await captureServer("account_deleted", user.id, { self: true });
 
   return NextResponse.json({ ok: true });
 }

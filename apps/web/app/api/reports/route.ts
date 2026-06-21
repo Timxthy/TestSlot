@@ -5,6 +5,7 @@ import { getStore } from "@/lib/data";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auditLog, recordContentFlag } from "@/lib/audit";
 import { getUserTrustLevel } from "@/lib/trust";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
         targetType: "availability_report",
         metadata: { matched: scam.matched },
       });
+      await captureServer("report_scam_blocked", user.id, {
+        centre: parsed.data.centreSlug,
+      });
       return NextResponse.json(
         { error: "That note looks like it mentions payment or personal details. Please remove it." },
         { status: 422 },
@@ -56,6 +60,9 @@ export async function POST(request: Request) {
 
   const limited = await checkRateLimit(user.id, "availability_reports");
   if (limited) {
+    await captureServer("report_rate_limited", user.id, {
+      centre: parsed.data.centreSlug,
+    });
     return NextResponse.json({ error: limited }, { status: 429 });
   }
 
@@ -88,6 +95,12 @@ export async function POST(request: Request) {
       metadata: { trustLevel },
     });
   }
+
+  await captureServer("report_submitted", user.id, {
+    centre: parsed.data.centreSlug,
+    type: parsed.data.type,
+    gated: gatesToModeration(trustLevel),
+  });
 
   return NextResponse.json({ ok: true, report }, { status: 201 });
 }

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { AppNav } from "@/components/app/AppNav";
 import { LogoutButton } from "@/components/app/LogoutButton";
 import { NotificationBell } from "@/components/app/NotificationBell";
+import { AnalyticsIdentify } from "@/components/analytics/AnalyticsIdentify";
 import { RadarMark } from "@/components/icons";
 
 export default async function AppLayout({
@@ -14,6 +15,7 @@ export default async function AppLayout({
   const user = await requireUser();
   return (
     <div className="min-h-screen bg-slate-50">
+      <AnalyticsIdentify userId={user.id} />
       <header className="border-b border-slate-200 bg-white">
         <div className="container-page flex h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-6">

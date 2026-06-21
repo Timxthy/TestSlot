@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,8 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  await captureServer("signup_completed", created.user.id);
 
   const supabase = createSupabaseServerClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });

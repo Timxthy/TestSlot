@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getServiceStore } from "@/lib/data";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,7 @@ export async function GET() {
   }
 
   const data = await getServiceStore().exportUserData(user.id);
+  await captureServer("account_exported", user.id);
 
   return new NextResponse(JSON.stringify(data, null, 2), {
     status: 200,

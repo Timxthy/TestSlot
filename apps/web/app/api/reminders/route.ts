@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MAX_REMINDER_TIMES, isValidReminderTime } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -43,5 +44,9 @@ export async function PUT(request: Request) {
   }
 
   const prefs = await getStore().saveReminderPreferences(user.id, parsed.data);
+  await captureServer("reminder_saved", user.id, {
+    enabled: parsed.data.enabled,
+    times: parsed.data.times.length,
+  });
   return NextResponse.json({ ok: true, prefs });
 }
