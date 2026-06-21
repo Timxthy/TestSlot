@@ -3,6 +3,7 @@ import {
   REMINDER_PUSH_BODY,
   REMINDER_PUSH_TITLE,
   dueSlots,
+  isAllowedPushEndpoint,
   parseHHMM,
 } from "@testslot/shared";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -102,7 +103,21 @@ export async function POST(request: Request) {
         .select("subscription, endpoint")
         .eq("user_id", pref.user_id);
 
+      let sendable = 0;
+      let anySent = false;
       for (const token of tokens ?? []) {
+        // SSRF guard for legacy/stale rows: never POST to a non-push-service URL,
+        // even one stored before endpoint validation existed. Drop it.
+        if (!isAllowedPushEndpoint(String(token.endpoint))) {
+          await admin
+            .from("device_tokens")
+            .delete()
+            .eq("user_id", pref.user_id)
+            .eq("endpoint", token.endpoint);
+          removed += 1;
+          continue;
+        }
+        sendable += 1;
         const result = await sendPush(token.subscription as never, {
           title: REMINDER_PUSH_TITLE,
           body: REMINDER_PUSH_BODY,
@@ -110,6 +125,7 @@ export async function POST(request: Request) {
         });
         if (result.ok) {
           pushed += 1;
+          anySent = true;
         } else if (result.gone) {
           await admin
             .from("device_tokens")
@@ -118,6 +134,14 @@ export async function POST(request: Request) {
             .eq("endpoint", token.endpoint);
           removed += 1;
         }
+      }
+
+      // If every deliverable push failed transiently, release the slot claim so a
+      // later run retries instead of suppressing the reminder for the whole day.
+      if (sendable > 0 && !anySent) {
+        await admin.from("reminder_deliveries").delete().eq("id", inserted.id);
+        skipped += 1;
+        continue;
       }
 
       await auditLog({

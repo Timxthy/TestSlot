@@ -173,6 +173,7 @@ class MockStore implements DataStore {
       reminderPreferences: this.reminderPrefs.get(userId) ?? null,
       deviceTokens: this.deviceTokens.filter((t) => t.userId === userId),
       notificationDeliveries: [],
+      subscriptions: [],
     };
   }
 

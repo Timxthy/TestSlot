@@ -55,7 +55,17 @@ export async function POST(request: Request) {
   const tier = sub && sub.status === "active" ? String(sub.tier) : "free";
   const limit = entitlementsForTier(tier).followLimit;
 
-  const centres = (parsed.data.centres ?? []).slice(0, limit);
+  // Account for centres the user already follows so re-running onboarding can't
+  // push them over the cap; only add new centres up to the remaining headroom.
+  const { data: existing } = await admin
+    .from("user_centres")
+    .select("centre_slug")
+    .eq("user_id", user.id);
+  const existingSlugs = new Set((existing ?? []).map((r) => String(r.centre_slug)));
+  const remaining = Math.max(0, limit - existingSlugs.size);
+  const centres = (parsed.data.centres ?? [])
+    .filter((slug) => !existingSlugs.has(slug))
+    .slice(0, remaining);
   if (centres.length > 0) {
     const { error: followError } = await admin
       .from("user_centres")

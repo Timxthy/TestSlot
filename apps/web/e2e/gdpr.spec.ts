@@ -15,7 +15,14 @@ test("data export returns the user's data as JSON", async ({ request }) => {
   const res = await request.get("/api/account/export");
   expect(res.status()).toBe(200);
   const body = await res.json();
-  for (const key of ["profile", "follows", "reports", "cancellations", "reminderPreferences"]) {
+  for (const key of [
+    "profile",
+    "follows",
+    "reports",
+    "cancellations",
+    "reminderPreferences",
+    "subscriptions",
+  ]) {
     expect(body).toHaveProperty(key);
   }
 });

@@ -267,6 +267,7 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         reminderPreferences,
         deviceTokens,
         notificationDeliveries,
+        subscriptions,
       ] = await Promise.all([
         pick("user_centres", "user_id"),
         pick("availability_reports", "user_id"),
@@ -275,6 +276,7 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         pick("reminder_preferences", "user_id"),
         pick("device_tokens", "user_id"),
         pick("notification_deliveries", "user_id"),
+        pick("subscriptions", "user_id"),
       ]);
       return {
         exportedAt: new Date().toISOString(),
@@ -286,6 +288,7 @@ export function createSupabaseStore(client: SupabaseClient): DataStore {
         reminderPreferences,
         deviceTokens,
         notificationDeliveries,
+        subscriptions,
       };
     },
 
