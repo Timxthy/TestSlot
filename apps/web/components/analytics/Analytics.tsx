@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { POSTHOG_KEY } from "@/lib/analytics/config";
 import {
+  CONSENT_CHANGE_EVENT,
   shouldLoadAnalytics,
   shouldShowConsentBanner,
   type ConsentChoice,
@@ -35,6 +36,13 @@ export function Analytics() {
   useEffect(() => {
     if (shouldLoadAnalytics(POSTHOG_KEY, consent)) loadPostHog();
   }, [consent]);
+
+  // The footer "Cookie settings" control fires this to re-prompt for consent.
+  useEffect(() => {
+    const reopen = () => setConsent(null);
+    window.addEventListener(CONSENT_CHANGE_EVENT, reopen);
+    return () => window.removeEventListener(CONSENT_CHANGE_EVENT, reopen);
+  }, []);
 
   const accept = useCallback(() => {
     storeConsent("granted");

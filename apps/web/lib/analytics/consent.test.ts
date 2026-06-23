@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONSENT_CHANGE_EVENT,
   CONSENT_COOKIE,
   consentFromCookieString,
+  expireConsentCookie,
   parseConsent,
   serializeConsentCookie,
   shouldLoadAnalytics,
@@ -49,6 +51,20 @@ describe("shouldLoadAnalytics", () => {
     expect(shouldLoadAnalytics("phc_key", null)).toBe(false);
     expect(shouldLoadAnalytics("", "granted")).toBe(false);
     expect(shouldLoadAnalytics(undefined, "granted")).toBe(false);
+  });
+});
+
+describe("expireConsentCookie", () => {
+  it("clears the cookie (Max-Age=0) so the choice reverts to undecided", () => {
+    const cookie = expireConsentCookie();
+    expect(cookie.startsWith(`${CONSENT_COOKIE}=`)).toBe(true);
+    expect(cookie).toContain("Max-Age=0");
+    // The cleared value no longer parses to a choice.
+    expect(consentFromCookieString(cookie.split(";")[0])).toBeNull();
+  });
+
+  it("exposes a stable event name for the re-prompt control", () => {
+    expect(CONSENT_CHANGE_EVENT).toBe("tsr:consent-change");
   });
 });
 

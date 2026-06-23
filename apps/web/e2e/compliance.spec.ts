@@ -32,6 +32,10 @@ test.describe("compliance surfaces", () => {
     await expect(
       page.getByRole("dialog", { name: /cookie consent/i }),
     ).toHaveCount(0);
+    // The "Cookie settings" control also hides — there is nothing to manage.
+    await expect(
+      page.getByRole("button", { name: /cookie settings/i }),
+    ).toHaveCount(0);
 
     const cookies = await page.context().cookies();
     expect(cookies.some((c) => c.name === "tsr_analytics_consent")).toBe(false);

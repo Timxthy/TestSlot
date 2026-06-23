@@ -11,6 +11,12 @@ export const CONSENT_COOKIE = "tsr_analytics_consent";
 /** 180 days — re-prompt after that so consent stays meaningful. */
 export const CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
 
+/**
+ * Window event the "Cookie settings" control fires to re-open the banner so a
+ * user can change or withdraw consent as easily as they gave it (UK GDPR).
+ */
+export const CONSENT_CHANGE_EVENT = "tsr:consent-change";
+
 export type ConsentChoice = "granted" | "denied";
 
 /** Narrows an arbitrary stored value to a valid choice, or null if unset/garbage. */
@@ -47,6 +53,11 @@ export function serializeConsentCookie(choice: ConsentChoice): string {
     `${CONSENT_COOKIE}=${choice}; Max-Age=${CONSENT_MAX_AGE_SECONDS}; ` +
     `Path=/; SameSite=Lax`
   );
+}
+
+/** Clears the stored choice (back to "undecided"), so the banner shows again. */
+export function expireConsentCookie(): string {
+  return `${CONSENT_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
 }
 
 /**

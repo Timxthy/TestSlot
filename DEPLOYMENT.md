@@ -98,3 +98,36 @@ secret should report `{ok:true, posts, queued, sent, skipped}`.
 
 **Compliance:** deliveries are triggered only by user-submitted, moderated community
 events — never by scanning DVSA.
+
+## 7. Observability, analytics + realtime (scaffolded, inert)
+
+All inert until configured, so they are safe to ship before the accounts exist.
+
+**Analytics (PostHog, EU region).** Set in Netlify:
+
+| Variable | Mark secret? | Contexts | Notes |
+|---|---|---|---|
+| `NEXT_PUBLIC_POSTHOG_KEY` | no | All | publishable key (`phc_…`); enables analytics + the cookie banner |
+| `NEXT_PUBLIC_POSTHOG_HOST` | no | All | defaults to `https://eu.i.posthog.com` |
+| `NEXT_PUBLIC_SENTRY_DSN` | no | All | optional; config slot only (no loader wired yet) |
+| `POSTHOG_KEY` / `POSTHOG_HOST` | no | All | optional server-only override; falls back to the `NEXT_PUBLIC_` values |
+
+- **Privacy by design:** with no key set there is **no cookie banner and no
+  cookie**. Browser analytics ([`lib/analytics/client.ts`](apps/web/lib/analytics/client.ts))
+  loads PostHog only after the user accepts the banner; a "Cookie settings"
+  control in the footer lets them change or withdraw consent.
+- **Server-side events** ([`lib/analytics/server.ts`](apps/web/lib/analytics/server.ts))
+  are dependency-free and carry IDs/counts only — no email or report contents.
+- App-wide error boundaries ([`app/error.tsx`](apps/web/app/error.tsx),
+  [`app/global-error.tsx`](apps/web/app/global-error.tsx)) report a bounded
+  `$exception` to PostHog for an error-rate signal.
+
+**Realtime live feeds.** The centre page and cancellation board subscribe to
+public-read tables and refresh on change ([`RealtimeRefresh`](apps/web/components/app/RealtimeRefresh.tsx)).
+Inert unless `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` are
+present **and** the tables are in the realtime publication.
+
+**To activate realtime:** apply [`supabase/migrations/0011_realtime.sql`](supabase/migrations/0011_realtime.sql)
+(idempotent — adds `centre_status` + approved-only `cancellation_posts` to the
+`supabase_realtime` publication). RLS still governs delivery, so clients only
+ever receive rows they may already read.

@@ -4,7 +4,9 @@
 // importing this module on the server is harmless.
 
 import {
+  CONSENT_CHANGE_EVENT,
   consentFromCookieString,
+  expireConsentCookie,
   serializeConsentCookie,
   type ConsentChoice,
 } from "./consent";
@@ -120,4 +122,16 @@ export function capturePageview(url: string): void {
 export function optOut(): void {
   if (typeof window === "undefined") return;
   window.posthog?.opt_out_capturing();
+}
+
+/**
+ * Re-opens the consent banner so the user can change or withdraw their choice.
+ * Clears the stored decision (and stops capture if it was granted), then signals
+ * the banner to reappear.
+ */
+export function openConsentSettings(): void {
+  if (typeof document === "undefined") return;
+  if (getStoredConsent() === "granted") optOut();
+  document.cookie = expireConsentCookie();
+  window.dispatchEvent(new Event(CONSENT_CHANGE_EVENT));
 }
