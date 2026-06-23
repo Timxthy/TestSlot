@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LEGAL_DISCLAIMER } from "@testslot/shared";
 import { RadarMark } from "@/components/icons";
+import { ManageCookies } from "@/components/analytics/ManageCookies";
 
 const footerNav = [
   {
@@ -64,10 +65,13 @@ export function Footer() {
 
         <div className="mt-10 border-t border-slate-200 pt-6">
           <p className="text-xs leading-relaxed text-slate-500">{LEGAL_DISCLAIMER}</p>
-          <p className="mt-3 text-xs text-slate-400">
-            © {new Date().getFullYear()} TestSlot Radar. Not affiliated with DVSA,
-            DVLA or GOV.UK.
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-xs text-slate-400">
+              © {new Date().getFullYear()} TestSlot Radar. Not affiliated with DVSA,
+              DVLA or GOV.UK.
+            </p>
+            <ManageCookies />
+          </div>
         </div>
       </div>
     </footer>

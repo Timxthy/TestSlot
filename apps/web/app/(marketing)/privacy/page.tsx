@@ -54,10 +54,29 @@ export default function PrivacyPage() {
           </div>
 
           <div>
+            <h2 className="text-2xl text-ink">Cookies and analytics</h2>
+            <p className="mt-3 leading-relaxed">
+              Essential cookies keep you signed in and remember your cookie
+              choice — these are always on because the site needs them to work.
+            </p>
+            <p className="mt-3 leading-relaxed">
+              We also use privacy-friendly product analytics (PostHog, hosted in
+              the EU) to understand how the site is used so we can improve it.
+              These analytics cookies are <strong>off by default</strong> and
+              only run if you choose “Accept” on the cookie banner. If you
+              decline, none are set. There are no advertising or marketing
+              trackers, and analytics never receives anything from the
+              “what we never collect” list above.
+            </p>
+          </div>
+
+          <div>
             <h2 className="text-2xl text-ink">Your rights</h2>
             <p className="mt-3 leading-relaxed">
               You can ask us to show you the data we hold about you, or to delete
-              it, at any time. Contact us and we’ll action it.
+              it, at any time. Signed-in users can export or delete their data
+              from <span className="font-medium text-ink">Settings</span>, and
+              you can change your cookie choice whenever you like.
             </p>
           </div>
         </div>

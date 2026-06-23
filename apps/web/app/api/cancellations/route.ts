@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordContentFlag } from "@/lib/audit";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,13 @@ export async function POST(request: Request) {
       severity: "medium",
       autoAction: "pending_review",
     });
+    await captureServer("cancellation_routed_to_moderation", user.id, {
+      centre: parsed.data.centreSlug,
+    });
   }
+  await captureServer("cancellation_posted", user.id, {
+    centre: parsed.data.centreSlug,
+    flagged,
+  });
   return NextResponse.json({ ok: true, flagged }, { status: 201 });
 }

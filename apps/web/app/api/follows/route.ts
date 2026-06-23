@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { entitlementsForTier } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -40,8 +41,10 @@ export async function POST(request: Request) {
       );
     }
     await store.follow(user.id, slug);
+    await captureServer("centre_followed", user.id, { centre: slug });
   } else {
     await store.unfollow(user.id, slug);
+    await captureServer("centre_unfollowed", user.id, { centre: slug });
   }
 
   return NextResponse.json({ ok: true });

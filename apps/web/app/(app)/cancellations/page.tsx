@@ -1,6 +1,8 @@
 import { TEST_CENTRES, getCentreBySlug } from "@testslot/shared";
 import { getServiceStore } from "@/lib/data";
 import { CancellationForm } from "@/components/app/CancellationForm";
+import { RealtimeRefresh } from "@/components/app/RealtimeRefresh";
+import { cancellationsChannel } from "@/lib/realtime";
 import { formatDateTime, formatMonth } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,7 @@ export default async function CancellationsPage() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+      <RealtimeRefresh channel={cancellationsChannel()} table="cancellation_posts" />
       <section>
         <h1 className="text-3xl">Cancellation board</h1>
         <p className="mt-1 text-slate-600">

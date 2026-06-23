@@ -3,6 +3,7 @@ import { z } from "zod";
 import { entitlementsForTier, isKnownCentre } from "@testslot/shared";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { captureServer } from "@/lib/analytics/server";
 
 export const runtime = "nodejs";
 
@@ -81,6 +82,10 @@ export async function POST(request: Request) {
       );
     }
   }
+
+  await captureServer("onboarding_completed", user.id, {
+    centres: centres.length,
+  });
 
   return NextResponse.json({ ok: true });
 }
