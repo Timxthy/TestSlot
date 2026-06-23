@@ -109,7 +109,7 @@ All inert until configured, so they are safe to ship before the accounts exist.
 |---|---|---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | no | All | publishable key (`phc_…`); enables analytics + the cookie banner |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | All | defaults to `https://eu.i.posthog.com` |
-| `NEXT_PUBLIC_SENTRY_DSN` | no | All | optional; config slot only (no loader wired yet) |
+| `NEXT_PUBLIC_SENTRY_DSN` | no | All | optional; loads Sentry (consent-gated) for richer error context |
 | `POSTHOG_KEY` / `POSTHOG_HOST` | no | All | optional server-only override; falls back to the `NEXT_PUBLIC_` values |
 
 - **Privacy by design:** with no key set there is **no cookie banner and no
@@ -120,7 +120,9 @@ All inert until configured, so they are safe to ship before the accounts exist.
   are dependency-free and carry IDs/counts only — no email or report contents.
 - App-wide error boundaries ([`app/error.tsx`](apps/web/app/error.tsx),
   [`app/global-error.tsx`](apps/web/app/global-error.tsx)) report a bounded
-  `$exception` to PostHog for an error-rate signal.
+  `$exception` to PostHog for an error-rate signal, and forward the full
+  exception to Sentry when its DSN is set (loaded via the dependency-free loader
+  script, also after consent).
 
 **Realtime live feeds.** The centre page and cancellation board subscribe to
 public-read tables and refresh on change ([`RealtimeRefresh`](apps/web/components/app/RealtimeRefresh.tsx)).

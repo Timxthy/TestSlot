@@ -20,3 +20,10 @@ export const ANALYTICS_ENABLED = Boolean(POSTHOG_KEY);
 
 /** True when browser error reporting has a destination configured. */
 export const SENTRY_ENABLED = Boolean(SENTRY_DSN);
+
+/**
+ * True when anything that needs consent is configured (analytics or error
+ * reporting). Drives whether the cookie banner and "Cookie settings" control
+ * appear at all.
+ */
+export const ANALYTICS_CONFIGURED = ANALYTICS_ENABLED || SENTRY_ENABLED;

@@ -1,6 +1,6 @@
 "use client";
 
-import { POSTHOG_KEY } from "@/lib/analytics/config";
+import { ANALYTICS_CONFIGURED } from "@/lib/analytics/config";
 import { openConsentSettings } from "@/lib/analytics/client";
 
 /**
@@ -9,7 +9,7 @@ import { openConsentSettings } from "@/lib/analytics/client";
  * since then there is no consent to manage (and no cookie is ever set).
  */
 export function ManageCookies({ className }: { className?: string }) {
-  if (!POSTHOG_KEY) return null;
+  if (!ANALYTICS_CONFIGURED) return null;
   return (
     <button
       type="button"

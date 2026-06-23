@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { identify, reportClientError } from "./client";
+import { identify, reportClientError, sentryLoaderSrc } from "./client";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -26,9 +26,33 @@ describe("reportClientError", () => {
     expect(capture.mock.calls[0][1].message).toHaveLength(300);
   });
 
-  it("is a no-op (no throw) when PostHog is not loaded", () => {
+  it("is a no-op (no throw) when no destination is loaded", () => {
     vi.stubGlobal("window", {});
     expect(() => reportClientError(new Error("boom"))).not.toThrow();
+  });
+
+  it("forwards the exception to Sentry when it is loaded", () => {
+    const captureException = vi.fn();
+    vi.stubGlobal("window", { Sentry: { captureException } });
+    const err = new Error("boom");
+    reportClientError(err);
+    expect(captureException).toHaveBeenCalledWith(err);
+  });
+});
+
+describe("sentryLoaderSrc", () => {
+  it("builds the loader URL from the DSN public key", () => {
+    expect(
+      sentryLoaderSrc("https://abc123@o456.ingest.de.sentry.io/789"),
+    ).toBe("https://js.sentry-cdn.com/abc123.min.js");
+  });
+
+  it("returns null for an empty or malformed DSN", () => {
+    expect(sentryLoaderSrc("")).toBeNull();
+    expect(sentryLoaderSrc(undefined)).toBeNull();
+    expect(sentryLoaderSrc("not-a-url")).toBeNull();
+    // A URL with no public key (username) is unusable.
+    expect(sentryLoaderSrc("https://o456.ingest.de.sentry.io/789")).toBeNull();
   });
 });
 

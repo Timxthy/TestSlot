@@ -2,17 +2,17 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { POSTHOG_KEY } from "@/lib/analytics/config";
+import { ANALYTICS_CONFIGURED, POSTHOG_KEY } from "@/lib/analytics/config";
 import {
   CONSENT_CHANGE_EVENT,
   shouldLoadAnalytics,
-  shouldShowConsentBanner,
   type ConsentChoice,
 } from "@/lib/analytics/consent";
 import {
   capturePageview,
   getStoredConsent,
   loadPostHog,
+  loadSentry,
   optOut,
   storeConsent,
 } from "@/lib/analytics/client";
@@ -33,8 +33,11 @@ export function Analytics() {
     setHydrated(true);
   }, []);
 
+  // On consent, load each configured destination (each self-gates on its key).
   useEffect(() => {
-    if (shouldLoadAnalytics(POSTHOG_KEY, consent)) loadPostHog();
+    if (consent !== "granted") return;
+    loadPostHog();
+    loadSentry();
   }, [consent]);
 
   // The footer "Cookie settings" control fires this to re-prompt for consent.
@@ -55,7 +58,7 @@ export function Analytics() {
     optOut();
   }, []);
 
-  if (!POSTHOG_KEY) return null;
+  if (!ANALYTICS_CONFIGURED) return null;
 
   return (
     <>
@@ -64,7 +67,7 @@ export function Analytics() {
           <PageviewTracker />
         </Suspense>
       ) : null}
-      {hydrated && shouldShowConsentBanner(POSTHOG_KEY, consent) ? (
+      {hydrated && consent === null ? (
         <CookieConsent onAccept={accept} onDecline={decline} />
       ) : null}
     </>

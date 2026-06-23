@@ -10,7 +10,7 @@ import {
   serializeConsentCookie,
   type ConsentChoice,
 } from "./consent";
-import { POSTHOG_HOST, POSTHOG_KEY } from "./config";
+import { POSTHOG_HOST, POSTHOG_KEY, SENTRY_DSN } from "./config";
 
 declare global {
   interface Window {
@@ -22,10 +22,17 @@ declare global {
       opt_out_capturing: () => void;
       __loaded?: boolean;
     };
+    // Sentry's loader script attaches the SDK here.
+    Sentry?: {
+      init: (opts: Record<string, unknown>) => void;
+      captureException: (error: unknown) => void;
+    };
+    sentryOnLoad?: () => void;
   }
 }
 
 let loadStarted = false;
+let sentryLoadStarted = false;
 // Set if identify() is called before PostHog has been injected (effect ordering);
 // flushed once the client exists.
 let pendingDistinctId: string | null = null;
@@ -91,8 +98,46 @@ export function identify(distinctId: string): void {
 }
 
 /**
- * Best-effort client-side error report. Sends a bounded message only (no stack,
- * no PII) and no-ops unless PostHog is loaded.
+ * Builds the Sentry Loader Script URL from a DSN (the public key is the DSN's
+ * username). Returns null for an empty or malformed DSN. Pure — safe to unit
+ * test without a browser.
+ */
+export function sentryLoaderSrc(dsn: string | undefined | null): string | null {
+  if (!dsn) return null;
+  try {
+    const publicKey = new URL(dsn).username;
+    if (!publicKey) return null;
+    return `https://js.sentry-cdn.com/${publicKey}.min.js`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Loads Sentry via its dependency-free loader script (no SDK in the bundle).
+ * Called only after consent is granted. Inert unless NEXT_PUBLIC_SENTRY_DSN is a
+ * valid DSN. sendDefaultPii is off so IPs/usernames aren't attached.
+ */
+export function loadSentry(): void {
+  if (typeof window === "undefined") return;
+  const src = sentryLoaderSrc(SENTRY_DSN);
+  if (!src || sentryLoadStarted || window.Sentry) return;
+  sentryLoadStarted = true;
+
+  window.sentryOnLoad = () => {
+    window.Sentry?.init({ sendDefaultPii: false });
+  };
+
+  const script = document.createElement("script");
+  script.src = src;
+  script.crossOrigin = "anonymous";
+  document.head.appendChild(script);
+}
+
+/**
+ * Best-effort client-side error report. Sends a bounded message to PostHog (no
+ * stack, no PII) and the full exception to Sentry when loaded. No-ops for any
+ * destination that isn't present.
  */
 export function reportClientError(error: unknown): void {
   if (typeof window === "undefined") return;
@@ -102,6 +147,7 @@ export function reportClientError(error: unknown): void {
     message: message.slice(0, 300),
     digest: (error as { digest?: string } | null)?.digest,
   });
+  window.Sentry?.captureException(error);
 }
 
 /** Fire-and-forget event capture. No-ops until PostHog has loaded. */
