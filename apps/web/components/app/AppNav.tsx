@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
+const baseLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/report", label: "Submit report" },
   { href: "/cancellations", label: "Cancellations" },
   { href: "/settings", label: "Reminders" },
-  { href: "/admin", label: "Admin" },
 ];
 
-export function AppNav() {
+const adminLink = { href: "/admin", label: "Admin" };
+
+export function AppNav({ showAdmin = false }: { showAdmin?: boolean }) {
   const pathname = usePathname();
+  const links = showAdmin ? [...baseLinks, adminLink] : baseLinks;
   return (
     <nav className="flex flex-wrap gap-1" aria-label="App">
       {links.map((link) => {

@@ -21,8 +21,8 @@ export default async function AdminPage() {
       </div>
 
       <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        Prototype: admin is open in this demo. In production this is a separate,
-        MFA-gated app with role-based access and an immutable audit log.
+        Restricted area. Every action here is recorded in an append-only audit
+        log. Only sign in from a trusted device.
       </p>
 
       {pending.length === 0 ? (

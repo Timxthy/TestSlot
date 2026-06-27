@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { COMMUNITY_DATA_LABEL } from "@testslot/shared";
-import { requireUser } from "@/lib/auth";
+import { isModerator, requireUser } from "@/lib/auth";
 import { AppNav } from "@/components/app/AppNav";
 import { LogoutButton } from "@/components/app/LogoutButton";
 import { NotificationBell } from "@/components/app/NotificationBell";
@@ -14,6 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const canModerate = isModerator(user);
   return (
     <div className="min-h-screen bg-slate-50">
       <AnalyticsIdentify userId={user.id} />
@@ -25,7 +26,7 @@ export default async function AppLayout({
               <span className="font-semibold tracking-tight">TestSlot Radar</span>
             </Link>
             <div className="hidden sm:block">
-              <AppNav />
+              <AppNav showAdmin={canModerate} />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -39,7 +40,7 @@ export default async function AppLayout({
         </div>
         <div className="border-t border-slate-200 sm:hidden">
           <div className="container-page py-2">
-            <AppNav />
+            <AppNav showAdmin={canModerate} />
           </div>
         </div>
       </header>

@@ -3,6 +3,11 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = { title: "Log in" };
 
-export default function LoginPage() {
-  return <LoginForm />;
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: { next?: string };
+}) {
+  const next = typeof searchParams.next === "string" ? searchParams.next : undefined;
+  return <LoginForm next={next} />;
 }

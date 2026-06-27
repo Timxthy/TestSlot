@@ -4,19 +4,20 @@ import { requireUser } from "@/lib/auth";
 import { getServiceStore } from "@/lib/data";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { GovUkLink } from "@/components/GovUkLink";
-import { timeAgo } from "@/lib/format";
+import { formatReminderTime, timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-
-const REMINDERS = ["5:55am", "12:30pm", "8:30pm", "Sun evening", "Mon morning"];
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const store = getServiceStore();
-  const [follows, statuses] = await Promise.all([
+  const [follows, statuses, reminderPrefs] = await Promise.all([
     store.listFollows(user.id),
     store.listCentreStatuses(),
+    store.getReminderPreferences(user.id),
   ]);
+  const reminderTimes =
+    reminderPrefs.enabled ? reminderPrefs.times : [];
 
   const followed = follows
     .map((slug) => ({ centre: getCentreBySlug(slug), status: statuses[slug] }))
@@ -61,6 +62,18 @@ export default async function DashboardPage() {
             Add centres
           </Link>
         </div>
+        {followed.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <p className="font-medium text-ink">You’re not following any centres yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-600">
+              Follow the test centres near you to see community-reported activity
+              and get check reminders.
+            </p>
+            <Link href="/test-centres" className="btn-primary mt-4 inline-block">
+              Find centres to follow
+            </Link>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {followed.map(({ centre, status }) => (
             <div key={centre.slug} className="card p-5">
@@ -112,13 +125,23 @@ export default async function DashboardPage() {
           </Link>
           .
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {REMINDERS.map((r) => (
-            <span key={r} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
-              {r}
-            </span>
-          ))}
-        </div>
+        {reminderTimes.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {reminderTimes.map((t) => (
+              <span key={t} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
+                {formatReminderTime(t)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">
+            No check reminders set yet.{" "}
+            <Link href="/settings" className="font-medium text-brand-700 hover:underline">
+              Set them up
+            </Link>
+            .
+          </p>
+        )}
         <div className="mt-4">
           <GovUkLink />
         </div>

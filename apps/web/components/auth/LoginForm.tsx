@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { safeInternalPath } from "@/lib/auth-routing";
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +27,13 @@ export function LoginForm() {
       setError(data.error ?? "Could not sign in.");
       return;
     }
-    router.push(data.next ?? "/dashboard");
+    // Onboarding (set by the API for users without a postcode) always wins;
+    // otherwise honour a safe ?next= deep link, then fall back to the dashboard.
+    const target =
+      data.next === "/onboarding"
+        ? "/onboarding"
+        : safeInternalPath(next) ?? data.next ?? "/dashboard";
+    router.push(target);
     router.refresh();
   }
 
