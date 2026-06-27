@@ -18,6 +18,15 @@ export function formatMonth(ym?: string): string {
   });
 }
 
+/** "HH:MM" (24h) → friendly 12-hour clock, e.g. "05:55" → "5:55am". */
+export function formatReminderTime(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h < 12 ? "am" : "pm";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, "0")}${period}`;
+}
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     weekday: "short",

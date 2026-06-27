@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RadarMark } from "@/components/icons";
+import { HeaderCta } from "@/components/HeaderCta";
 
 const navLinks = [
   { href: "/how-it-works", label: "How it works" },
@@ -30,15 +31,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="hidden text-sm font-medium text-slate-600 transition hover:text-ink sm:inline"
-          >
-            Open app
-          </Link>
-          <Link href="/#waitlist" className="btn-primary !px-4 !py-2 text-sm">
-            Join the beta
-          </Link>
+          <HeaderCta />
         </div>
       </div>
     </header>
