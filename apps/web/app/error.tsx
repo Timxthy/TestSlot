@@ -32,8 +32,8 @@ export default function Error({
           <button type="button" onClick={reset} className="btn-primary">
             Try again
           </button>
-          <Link href="/dashboard" className="btn-secondary">
-            Back to dashboard
+          <Link href="/" className="btn-secondary">
+            Back to home
           </Link>
         </div>
         {error.digest ? (
