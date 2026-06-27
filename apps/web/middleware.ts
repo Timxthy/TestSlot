@@ -32,14 +32,12 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Send signed-in users away from guest-only pages (e.g. the marketing landing,
-  // login, signup) and into the app.
+  // Route by auth state: signed-in users away from guest-only pages into the app,
+  // and signed-out users away from authed pages to /login (remembering ?next=).
   const destination = authRedirect(request.nextUrl.pathname, Boolean(user));
   if (destination) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = destination;
-    redirectUrl.search = "";
-    const redirectResponse = NextResponse.redirect(redirectUrl);
+    // `destination` may carry a query (?next=…), so resolve it as a full URL.
+    const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
     // Carry over any refreshed auth cookies so the session stays in sync.
     response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
     return redirectResponse;
