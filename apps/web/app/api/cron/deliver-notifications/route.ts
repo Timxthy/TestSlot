@@ -17,6 +17,29 @@ const GOVUK_URL =
   process.env.NEXT_PUBLIC_GOVUK_BOOKING_URL ?? "https://www.gov.uk/book-driving-test";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://testslotr.netlify.app";
 
+type AdminClient = ReturnType<typeof getAdminClient>;
+type DeliveryUpdate =
+  | { status: "sent"; sent_at: string }
+  | { status: "failed" | "skipped"; error: string };
+
+async function finalizeClaimedDelivery(
+  admin: AdminClient,
+  deliveryId: string,
+  deliveryAttempts: number,
+  update: DeliveryUpdate,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("notification_deliveries")
+    .update(update)
+    .eq("id", deliveryId)
+    .eq("status", "pending")
+    .eq("attempts", deliveryAttempts)
+    .select("id")
+    .maybeSingle();
+
+  return !error && Boolean(data?.id);
+}
+
 /** Only the scheduler, holding CRON_SECRET, may trigger delivery. */
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -69,6 +92,7 @@ export async function POST(request: Request) {
 
   let queued = 0;
   let sent = 0;
+  let failed = 0;
   let skipped = 0;
 
   for (const post of posts ?? []) {
@@ -159,17 +183,50 @@ export async function POST(request: Request) {
       }
 
       const deliveryId = String(claim.delivery_id);
+      const deliveryAttempts = Number(claim.delivery_attempts);
       const deliveryTitle = String(claim.delivery_title);
       const deliveryBody = String(claim.delivery_body);
+      if (!Number.isInteger(deliveryAttempts) || deliveryAttempts < 1) {
+        return NextResponse.json(
+          { error: "Invalid notification delivery claim." },
+          { status: 500 },
+        );
+      }
       queued += 1;
 
-      const { data: userRes } = await admin.auth.admin.getUserById(userId);
+      const { data: userRes, error: userError } =
+        await admin.auth.admin.getUserById(userId);
+      if (userError) {
+        const finalized = await finalizeClaimedDelivery(
+          admin,
+          deliveryId,
+          deliveryAttempts,
+          { status: "failed", error: "recipient lookup failed" },
+        );
+        if (!finalized) {
+          return NextResponse.json(
+            { error: "Could not record notification delivery outcome." },
+            { status: 500 },
+          );
+        }
+        failed += 1;
+        continue;
+      }
+
       const email = userRes?.user?.email;
       if (!email) {
-        await admin
-          .from("notification_deliveries")
-          .update({ status: "skipped", error: "no email on account" })
-          .eq("id", deliveryId);
+        const finalized = await finalizeClaimedDelivery(
+          admin,
+          deliveryId,
+          deliveryAttempts,
+          { status: "skipped", error: "no email on account" },
+        );
+        if (!finalized) {
+          return NextResponse.json(
+            { error: "Could not record notification delivery outcome." },
+            { status: 500 },
+          );
+        }
         skipped += 1;
         continue;
       }
@@ -190,18 +247,32 @@ export async function POST(request: Request) {
         },
       });
 
-      await admin
-        .from("notification_deliveries")
-        .update(
-          result.ok
-            ? { status: "sent", sent_at: new Date().toISOString() }
-            : { status: "failed", error: result.error },
-        )
-        .eq("id", deliveryId);
+      const finalized = await finalizeClaimedDelivery(
+        admin,
+        deliveryId,
+        deliveryAttempts,
+        result.ok
+          ? { status: "sent", sent_at: new Date().toISOString() }
+          : { status: "failed", error: "provider delivery failed" },
+      );
+      if (!finalized) {
+        return NextResponse.json(
+          { error: "Could not record notification delivery outcome." },
+          { status: 500 },
+        );
+      }
 
       if (result.ok) sent += 1;
+      else failed += 1;
     }
   }
 
-  return NextResponse.json({ ok: true, posts: posts?.length ?? 0, queued, sent, skipped });
+  return NextResponse.json({
+    ok: true,
+    posts: posts?.length ?? 0,
+    queued,
+    sent,
+    failed,
+    skipped,
+  });
 }

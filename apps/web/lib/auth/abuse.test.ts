@@ -6,27 +6,30 @@ import {
 } from "./abuse";
 
 describe("auth abuse helpers", () => {
-  it("extracts the first forwarded client IP", () => {
+  it("uses Netlify's normalized client IP", () => {
     const headers = new Headers({
-      "x-forwarded-for": "203.0.113.10, 10.0.0.4",
+      "x-nf-client-connection-ip": "203.0.113.10",
     });
 
     expect(clientIpFromHeaders(headers)).toBe("203.0.113.10");
   });
 
-  it("prefers a proxy-normalized client address and bounds header input", () => {
+  it("ignores spoofable forwarding headers", () => {
     const headers = new Headers({
       "cf-connecting-ip": "2001:db8::1",
+      "x-real-ip": "198.51.100.3",
       "x-forwarded-for": "198.51.100.4, 10.0.0.2",
     });
-    expect(clientIpFromHeaders(headers)).toBe("2001:db8::1");
-
-    const oversized = new Headers({ "x-forwarded-for": "a".repeat(300) });
-    expect(clientIpFromHeaders(oversized)).toHaveLength(128);
+    expect(clientIpFromHeaders(headers)).toBe("unknown");
   });
 
-  it("falls back to a stable unknown IP marker", () => {
+  it("rejects missing or malformed normalized addresses", () => {
     expect(clientIpFromHeaders(new Headers())).toBe("unknown");
+    expect(
+      clientIpFromHeaders(
+        new Headers({ "x-nf-client-connection-ip": "not-an-ip" }),
+      ),
+    ).toBe("unknown");
   });
 
   it("hashes auth identities without returning raw email or IP", () => {

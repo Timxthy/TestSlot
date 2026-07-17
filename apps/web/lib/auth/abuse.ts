@@ -1,18 +1,13 @@
 import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 
 export type AuthAttemptKind = "signup" | "login";
 
 export function clientIpFromHeaders(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  const candidate =
-    headers.get("cf-connecting-ip")?.trim() ||
-    headers.get("x-real-ip")?.trim() ||
-    forwarded?.split(",")[0]?.trim() ||
-    "unknown";
-
-  // Keep an attacker-controlled forwarding header from creating unbounded hash
-  // input while preserving complete IPv4/IPv6 addresses and proxy zone IDs.
-  return candidate.slice(0, 128) || "unknown";
+  // Netlify injects this header for Functions. Do not trust client-controlled
+  // forwarding headers: an attacker could rotate them to evade the IP bucket.
+  const candidate = headers.get("x-nf-client-connection-ip")?.trim() ?? "";
+  return isIP(candidate) ? candidate : "unknown";
 }
 
 export function hashAuthIdentity({
