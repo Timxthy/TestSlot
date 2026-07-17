@@ -16,8 +16,7 @@ export type AnalyticsEvent =
   | "centre_followed"
   | "centre_unfollowed"
   | "reminder_saved"
-  | "account_exported"
-  | "account_deleted";
+  | "account_exported";
 
 /** Allowed property value shapes — deliberately narrow to keep PII out. */
 export type AnalyticsProps = Record<
@@ -38,5 +37,4 @@ export const ANALYTICS_EVENTS: readonly AnalyticsEvent[] = [
   "centre_unfollowed",
   "reminder_saved",
   "account_exported",
-  "account_deleted",
 ];

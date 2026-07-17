@@ -13,9 +13,9 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
  * Subscribes to live changes on a public-read table and refreshes the server
  * components (debounced) when a relevant row changes. Renders nothing.
  *
- * Only ever point this at tables whose RLS already permits client SELECT
- * (centre_status, approved+active cancellation_posts) — realtime respects RLS,
- * so the browser receives events only for rows it is allowed to read.
+ * Only ever point this at tables whose RLS permits public SELECT and whose
+ * rows are intentionally safe for browsers (centre_status, cancellation board
+ * event pings). The callback ignores row payloads and only refreshes the page.
  */
 export function RealtimeRefresh({
   channel,

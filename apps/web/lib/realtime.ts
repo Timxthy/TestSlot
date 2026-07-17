@@ -22,10 +22,9 @@ export function centreStatusChannel(slug: string): string {
 }
 
 /**
- * Channel for the cancellation board. RLS (cancellations_public_read) only
- * exposes approved + active posts to clients, so a browser subscription receives
- * events only for rows it is already allowed to read — pending/rejected posts
- * never reach it.
+ * Channel for the cancellation board. Browsers subscribe to a minimal public
+ * event table, not raw cancellation_posts, then ask Next to refresh the server
+ * rendered board.
  */
 export function cancellationsChannel(): string {
   return "cancellations-board";

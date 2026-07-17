@@ -2,17 +2,23 @@
 // dependency (mirrors lib/email/resend.ts). Inert until POSTHOG_KEY is set, so
 // it is a safe no-op in mock/dev and in any deploy without analytics configured.
 //
-// This path does NOT set browser cookies and is governed by legitimate-interest
-// first-party product metrics, distinct from the cookie-consented browser
-// analytics. It carries the user UUID as the distinct id and nothing else that
-// could identify a person — never email, postcode or report contents.
+// This path does NOT set browser cookies, but it still sends product events to a
+// processor. It therefore follows the same consent choice as browser analytics.
+// It carries the user UUID as the distinct id and nothing else that could
+// identify a person — never email, postcode or report contents.
 //
 // Docs: https://posthog.com/docs/api/capture
 
+import { cookies } from "next/headers";
 import type { AnalyticsEvent, AnalyticsProps } from "./events";
+import { CONSENT_COOKIE, parseConsent, type ConsentChoice } from "./consent";
+
+interface CaptureServerOptions {
+  consent?: ConsentChoice | null;
+}
 
 function key(): string {
-  return process.env.POSTHOG_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || "";
+  return process.env.POSTHOG_KEY || "";
 }
 
 function host(): string {
@@ -28,6 +34,14 @@ export function isServerAnalyticsConfigured(): boolean {
   return Boolean(key());
 }
 
+function requestConsent(): ConsentChoice | null {
+  try {
+    return parseConsent(cookies().get(CONSENT_COOKIE)?.value);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Records a product event. Best-effort and never throws: observability must not
  * break a user action. `distinctId` should be the user's UUID (or a stable
@@ -37,9 +51,11 @@ export async function captureServer(
   event: AnalyticsEvent,
   distinctId: string,
   properties: AnalyticsProps = {},
+  options: CaptureServerOptions = {},
 ): Promise<void> {
   const apiKey = key();
   if (!apiKey) return;
+  if ((options.consent ?? requestConsent()) !== "granted") return;
 
   try {
     await fetch(`${host()}/capture/`, {

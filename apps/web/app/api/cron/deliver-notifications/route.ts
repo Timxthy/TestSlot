@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  type DeliveryStatus,
-  decideDelivery,
   getCentreBySlug,
   shouldDelayDelivery,
 } from "@testslot/shared";
@@ -10,16 +8,37 @@ import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { isEmailConfigured, sendEmail } from "@/lib/email/resend";
 import { signUnsubscribe } from "@/lib/unsubscribe";
 import { formatDateTime } from "@/lib/format";
+import { shouldConsiderCancellationForDelivery } from "@/lib/notifications/selection";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Look-back window per run; should comfortably exceed the cron interval so no
-// freshly-approved post is missed between runs.
-const LOOKBACK_MINUTES = 30;
 const GOVUK_URL =
   process.env.NEXT_PUBLIC_GOVUK_BOOKING_URL ?? "https://www.gov.uk/book-driving-test";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://testslotr.netlify.app";
+
+type AdminClient = ReturnType<typeof getAdminClient>;
+type DeliveryUpdate =
+  | { status: "sent"; sent_at: string }
+  | { status: "failed" | "skipped"; error: string };
+
+async function finalizeClaimedDelivery(
+  admin: AdminClient,
+  deliveryId: string,
+  deliveryAttempts: number,
+  update: DeliveryUpdate,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("notification_deliveries")
+    .update(update)
+    .eq("id", deliveryId)
+    .eq("status", "pending")
+    .eq("attempts", deliveryAttempts)
+    .select("id")
+    .maybeSingle();
+
+  return !error && Boolean(data?.id);
+}
 
 /** Only the scheduler, holding CRON_SECRET, may trigger delivery. */
 function authorized(request: Request): boolean {
@@ -55,26 +74,39 @@ export async function POST(request: Request) {
 
   const admin = getAdminClient();
   const nowIso = new Date().toISOString();
-  const sinceIso = new Date(Date.now() - LOOKBACK_MINUTES * 60_000).toISOString();
 
   const { data: posts, error: postsErr } = await admin
     .from("cancellation_posts")
-    .select("id, centre_slug, is_instructor, planned_cancel_at, approved_at")
+    .select(
+      "id, centre_slug, is_instructor, planned_cancel_at, approved_at, moderation_status, status, expires_at",
+    )
     .eq("moderation_status", "approved")
     .eq("status", "active")
     .gt("expires_at", nowIso)
-    // Filter on approval time, not creation time, so posts approved by a
-    // moderator long after they were created still get delivered.
-    .gte("approved_at", sinceIso);
+    // No short lookback: notification_deliveries is the durable idempotency
+    // record, so old active posts still get picked up after cron/email outages.
+    .not("approved_at", "is", null);
   if (postsErr) {
     return NextResponse.json({ error: postsErr.message }, { status: 500 });
   }
 
   let queued = 0;
   let sent = 0;
+  let failed = 0;
   let skipped = 0;
 
   for (const post of posts ?? []) {
+    if (
+      !shouldConsiderCancellationForDelivery({
+        moderationStatus: String(post.moderation_status),
+        status: String(post.status),
+        expiresAt: String(post.expires_at),
+        now: nowIso,
+      })
+    ) {
+      continue;
+    }
+
     const centre = getCentreBySlug(String(post.centre_slug));
     if (!centre) continue;
 
@@ -123,65 +155,78 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Look at any prior delivery for this (user, post, email) to decide whether
-      // to send fresh, retry a failed one, or skip an already-sent one.
-      const { data: existing } = await admin
-        .from("notification_deliveries")
-        .select("id, status, attempts")
-        .eq("user_id", userId)
-        .eq("cancellation_post_id", post.id)
-        .eq("channel", "email")
-        .maybeSingle();
-
-      const decision = decideDelivery(
-        existing
-          ? { status: existing.status as DeliveryStatus, attempts: Number(existing.attempts) }
-          : null,
+      // The database function atomically inserts or reclaims this delivery. A
+      // concurrent worker gets no row, and pending work is reclaimed only after
+      // its lease is stale.
+      const { data: claimedRows, error: claimError } = await admin.rpc(
+        "claim_notification_delivery",
+        {
+          p_user_id: userId,
+          p_centre_slug: String(post.centre_slug),
+          p_cancellation_post_id: String(post.id),
+          p_channel: "email",
+          p_title: title,
+          p_body: body,
+          p_now: nowIso,
+        },
       );
-      if (decision === "skip") {
+      if (claimError) {
+        return NextResponse.json(
+          { error: "Could not claim notification delivery." },
+          { status: 500 },
+        );
+      }
+      const claim = Array.isArray(claimedRows) ? claimedRows[0] : claimedRows;
+      if (!claim?.delivery_id) {
         skipped += 1;
         continue;
       }
 
-      let deliveryId: string;
-      if (decision === "retry") {
-        deliveryId = String(existing!.id);
-        await admin
-          .from("notification_deliveries")
-          .update({ status: "pending", attempts: Number(existing!.attempts) + 1, error: null })
-          .eq("id", deliveryId);
-      } else {
-        // send_new. A concurrent run may have inserted first (unique index) — if
-        // so the insert fails and we skip, letting that run own the delivery.
-        const { data: inserted, error: insErr } = await admin
-          .from("notification_deliveries")
-          .insert({
-            user_id: userId,
-            centre_slug: post.centre_slug,
-            cancellation_post_id: post.id,
-            channel: "email",
-            status: "pending",
-            title,
-            body,
-            attempts: 1,
-          })
-          .select("id")
-          .maybeSingle();
-        if (insErr || !inserted?.id) {
-          skipped += 1;
-          continue;
-        }
-        deliveryId = String(inserted.id);
+      const deliveryId = String(claim.delivery_id);
+      const deliveryAttempts = Number(claim.delivery_attempts);
+      const deliveryTitle = String(claim.delivery_title);
+      const deliveryBody = String(claim.delivery_body);
+      if (!Number.isInteger(deliveryAttempts) || deliveryAttempts < 1) {
+        return NextResponse.json(
+          { error: "Invalid notification delivery claim." },
+          { status: 500 },
+        );
       }
       queued += 1;
 
-      const { data: userRes } = await admin.auth.admin.getUserById(userId);
+      const { data: userRes, error: userError } =
+        await admin.auth.admin.getUserById(userId);
+      if (userError) {
+        const finalized = await finalizeClaimedDelivery(
+          admin,
+          deliveryId,
+          deliveryAttempts,
+          { status: "failed", error: "recipient lookup failed" },
+        );
+        if (!finalized) {
+          return NextResponse.json(
+            { error: "Could not record notification delivery outcome." },
+            { status: 500 },
+          );
+        }
+        failed += 1;
+        continue;
+      }
+
       const email = userRes?.user?.email;
       if (!email) {
-        await admin
-          .from("notification_deliveries")
-          .update({ status: "skipped", error: "no email on account" })
-          .eq("id", deliveryId);
+        const finalized = await finalizeClaimedDelivery(
+          admin,
+          deliveryId,
+          deliveryAttempts,
+          { status: "skipped", error: "no email on account" },
+        );
+        if (!finalized) {
+          return NextResponse.json(
+            { error: "Could not record notification delivery outcome." },
+            { status: 500 },
+          );
+        }
         skipped += 1;
         continue;
       }
@@ -189,9 +234,10 @@ export async function POST(request: Request) {
       const unsubscribeUrl = `${SITE_URL}/api/unsubscribe?u=${encodeURIComponent(signUnsubscribe(userId))}`;
       const result = await sendEmail({
         to: email,
-        subject: title,
+        subject: deliveryTitle,
+        idempotencyKey: `cancellation-email/${deliveryId}`,
         html:
-          `<p>${body}</p>` +
+          `<p>${deliveryBody}</p>` +
           `<p><a href="${GOVUK_URL}">Check availability on GOV.UK</a></p>` +
           `<hr><p style="font-size:12px;color:#64748b">You’re receiving this because you follow ${centre.name} ` +
           `on TestSlot Radar. <a href="${unsubscribeUrl}">Unsubscribe from notification emails</a>.</p>`,
@@ -201,18 +247,32 @@ export async function POST(request: Request) {
         },
       });
 
-      await admin
-        .from("notification_deliveries")
-        .update(
-          result.ok
-            ? { status: "sent", sent_at: new Date().toISOString() }
-            : { status: "failed", error: result.error },
-        )
-        .eq("id", deliveryId);
+      const finalized = await finalizeClaimedDelivery(
+        admin,
+        deliveryId,
+        deliveryAttempts,
+        result.ok
+          ? { status: "sent", sent_at: new Date().toISOString() }
+          : { status: "failed", error: "provider delivery failed" },
+      );
+      if (!finalized) {
+        return NextResponse.json(
+          { error: "Could not record notification delivery outcome." },
+          { status: 500 },
+        );
+      }
 
       if (result.ok) sent += 1;
+      else failed += 1;
     }
   }
 
-  return NextResponse.json({ ok: true, posts: posts?.length ?? 0, queued, sent, skipped });
+  return NextResponse.json({
+    ok: true,
+    posts: posts?.length ?? 0,
+    queued,
+    sent,
+    failed,
+    skipped,
+  });
 }

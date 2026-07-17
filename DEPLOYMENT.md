@@ -1,135 +1,179 @@
 # Deployment — TestSlot Radar (Netlify)
 
-Chunk A of the post-hardening plan. The web app (`apps/web`, Next.js 14 App Router)
-deploys to **Netlify** via the Next.js Runtime; `packages/shared` is a pnpm
-workspace dependency. Config lives in [`netlify.toml`](netlify.toml).
+The Next.js 14 web application in `apps/web` deploys through Netlify from the monorepo root. This document records the current deployment contract and its known pre-pilot limitations.
 
-## 1. Netlify site settings
-
-When connecting the repo (Add new site → Import from Git):
+## 1. Netlify build settings
 
 | Setting | Value |
 |---|---|
-| Base directory | repo root (no `base` — `pnpm-lock.yaml` lives here) |
-| Build command | `pnpm build` (set in `netlify.toml`) |
-| Publish directory | `apps/web/.next` (set in `netlify.toml`) |
-| Node version | **20** (set via `NODE_VERSION` in `netlify.toml`) |
-| Package manager | pnpm (auto-detected from `pnpm-lock.yaml`) |
-| Next.js plugin | `@netlify/plugin-nextjs` (auto-installed + pinned) |
+| Base directory | Repository root |
+| Build command | `pnpm build` |
+| Publish directory | `apps/web/.next` |
+| Node version | `20` |
+| Package manager | pnpm 9.15.0 |
+| Next.js integration | `@netlify/plugin-nextjs` |
 
-> Build from the repo **root**, not `apps/web` — Netlify must see `pnpm-lock.yaml`
-> at the root to detect pnpm and install the whole workspace. `base = "apps/web"`
-> breaks that and caused the first failed preview build.
+Build from the repository root so Netlify sees `pnpm-lock.yaml` and installs all workspace packages.
 
-## 2. Environment variables (Netlify UI → Site config → Environment variables)
+## 2. Environment variables
 
-Context + secret settings matter here — get them wrong and the build fails.
+### Public build/runtime configuration
 
-| Variable | Mark secret? | Deploy contexts | Value |
-|---|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | no | **All** | `https://testslotr.netlify.app` |
-| `NEXT_PUBLIC_GOVUK_BOOKING_URL` | no | **All** | `https://www.gov.uk/book-driving-test` |
-| `NEXT_PUBLIC_SUPABASE_URL` | **no** | **All** | project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **no** | **All** | `sb_publishable_…` |
-| `SUPABASE_URL` | yes | **Production only** | project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | yes | **Production only** | `sb_secret_…` (rotated) |
+| Variable | Context | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | Every intended context | Canonical site origin |
+| `NEXT_PUBLIC_GOVUK_BOOKING_URL` | Every intended context | GOV.UK booking action |
+| `NEXT_PUBLIC_SUPABASE_URL` | Live contexts | Public Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Live contexts | Public Supabase publishable key |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Optional | Consented browser analytics |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Optional | PostHog host, normally EU |
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional | Consented browser error reporting |
 
-**Why this split (learned the hard way on the first prod deploy):**
-- `NEXT_PUBLIC_*` are **inlined into the build** and are public by design, so they must
-  be **non-secret** and available in **all contexts**. Marking them secret/scoping them
-  to production starves the build and crashes it.
-- The two real secrets are **Production-only**, so deploy previews never receive them.
-- Live mode is gated on the **server secret** (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`),
-  not the public vars — see [`lib/supabase/config.ts`](apps/web/lib/supabase/config.ts). So
-  previews (no secret) run cleanly in **mock mode**; production runs live. No preview can
-  touch the real database.
+`NEXT_PUBLIC_*` values are compiled into browser assets and are not secrets.
 
-## 3. Supabase Auth URL config
+### Server-only configuration
 
-In the Supabase dashboard → Authentication → URL Configuration:
-- **Site URL:** the production domain (e.g. `https://<prod-domain>`).
-- **Redirect allow list:** add the production domain and the Netlify preview wildcard
-  (e.g. `https://*--<your-site>.netlify.app/**`) so login/callback works on previews.
+| Variable | Required when enabled | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Live data mode | Server Supabase URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Live data mode | Privileged server-only database access |
+| `AUTH_RATE_LIMIT_SECRET` | Recommended in live mode | Dedicated HMAC pepper for auth abuse buckets; the service-role key is the fallback |
+| `CRON_SECRET` | Scheduled jobs | Bearer secret for cron route handlers |
+| `RESEND_API_KEY` | Cancellation email delivery | Resend API credential |
+| `RESEND_FROM` | Cancellation email delivery | Verified sender |
+| `UNSUBSCRIBE_SECRET` | Email delivery | Unsubscribe signature secret; falls back to `CRON_SECRET` |
+| `POSTHOG_KEY` | Optional | Consented server product events |
+| `POSTHOG_HOST` | Optional | Server PostHog host |
 
-Keep `NEXT_PUBLIC_SITE_URL` in sync with the Site URL.
+Never expose the service-role key, auth-rate-limit secret, cron secret, unsubscribe secret or provider keys through a `NEXT_PUBLIC_` variable.
 
-## 4. Pre-deploy checklist (all currently green locally)
+### Public-launch evidence
 
-```bash
-pnpm typecheck              # ✓ exits 0
-pnpm --filter web test:e2e  # ✓ 6/6 (mock mode)
-pnpm build                  # ✓ 41 routes, ~34s
+These variables are evidence records, not feature flags:
+
+```text
+LEGAL_REVIEWED_AT
+DPIA_SIGNED_OFF_AT
+PROCESSOR_AGREEMENTS_SIGNED_OFF_AT
 ```
 
-Verified the **service-role secret does not appear in the client bundle**
-(`grep -r sb_secret apps/web/.next/static` → none).
+Do not set them until the matching evidence exists in `docs/launch-readiness.md`.
 
-> Note: local builds run on Node 18; Netlify builds on Node 20. The production
-> build already passes on 18, so 20 should be equal or better. Bumping local to
-> Node 20 (`nvm use 20`) clears the pnpm "Unsupported engine" + supabase-js warnings.
+## 3. Current runtime-mode limitation
 
-## 5. Post-deploy verification
+The current application enters live data mode when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present. It then requires `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Without the server pair it uses mock data.
 
-1. Build succeeds on Netlify (Node 20).
-2. Production URL loads; marketing pages render.
-3. Re-run the read-only key smoke test against the **prod** env values (REST + Admin API → 200).
-4. Confirm no `sb_secret` in deployed client assets (DevTools → Sources, or curl a JS chunk).
-5. One auth round-trip on the live site (sign up / log in / log out).
+This inferred mode is a temporary baseline, not the final staging contract. Until Phase 1 introduces explicit `mock`, `staging` and `production` modes:
 
-## 6. Chunk B — notification delivery (scaffolded, inert)
+- production must receive the complete live variable set;
+- previews must intentionally omit server credentials and remain mock;
+- no preview may receive production service-role credentials;
+- partial live configuration must be treated as a deployment error, even where the current app falls back to mock behavior.
 
-Now in the tree, guarded so it sends nothing until configured:
-- [`app/api/cron/deliver-notifications/route.ts`](apps/web/app/api/cron/deliver-notifications/route.ts)
-  — service-role worker: finds newly approved+active cancellation posts → emails
-  opted-in followers via Resend → records each send in `notification_deliveries`
-  (unique index = idempotent re-runs). Requires `Authorization: Bearer ${CRON_SECRET}`.
-- [`netlify/functions/deliver-notifications.ts`](apps/web/netlify/functions/deliver-notifications.ts)
-  — Netlify Scheduled Function (every 15 min) that pings the route with the secret.
-- [`lib/email/resend.ts`](apps/web/lib/email/resend.ts) — dependency-free Resend REST client.
-- [`supabase/migrations/0003_notification_deliveries.sql`](supabase/migrations/0003_notification_deliveries.sql)
-  — deliveries/dedupe table (**not yet applied** — review first).
+## 4. Database migration procedure
 
-**Verified inert:** with no secret → 401; wrong secret → 401; correct secret in
-mock mode → `200 {"skipped":true,...}`.
+Apply migrations in numeric order. For the launch-hardening branch, the expected head is:
 
-**To activate:** apply migration `0003`; set `RESEND_API_KEY`, `RESEND_FROM`
-(verified domain), and `CRON_SECRET` in Netlify env. Then a manual POST with the
-secret should report `{ok:true, posts, queued, sent, skipped}`.
+```text
+supabase/migrations/0012_launch_hardening.sql
+```
 
-**Compliance:** deliveries are triggered only by user-submitted, moderated community
-events — never by scanning DVSA.
+Before production application, record evidence for both:
 
-## 7. Observability, analytics + realtime (scaffolded, inert)
+1. applying `0012` to an isolated database already at `0011`;
+2. applying `0001` through `0012` from zero in an isolated Supabase-compatible database.
 
-All inert until configured, so they are safe to ship before the accounts exist.
+Migration `0012`:
 
-**Analytics (PostHog, EU region).** Set in Netlify:
+- creates/backfills `profiles` from `auth.users`;
+- creates service-role-only auth attempt buckets and an atomic consume function;
+- retains approved active cancellation reads while removing raw cancellation rows from the realtime publication;
+- publishes only one content-free refresh row per centre;
+- adds an atomic notification delivery claim with a ten-minute stale-pending lease;
+- enforces follow and rolling 24-hour submission limits under per-user advisory locks;
+- maps follow and daily-limit failures to SQLSTATE `TS001` and `TS002`.
 
-| Variable | Mark secret? | Contexts | Notes |
-|---|---|---|---|
-| `NEXT_PUBLIC_POSTHOG_KEY` | no | All | publishable key (`phc_…`); enables analytics + the cookie banner |
-| `NEXT_PUBLIC_POSTHOG_HOST` | no | All | defaults to `https://eu.i.posthog.com` |
-| `NEXT_PUBLIC_SENTRY_DSN` | no | All | optional; loads Sentry (consent-gated) for richer error context |
-| `POSTHOG_KEY` / `POSTHOG_HOST` | no | All | optional server-only override; falls back to the `NEXT_PUBLIC_` values |
+After application, verify:
 
-- **Privacy by design:** with no key set there is **no cookie banner and no
-  cookie**. Browser analytics ([`lib/analytics/client.ts`](apps/web/lib/analytics/client.ts))
-  loads PostHog only after the user accepts the banner; a "Cookie settings"
-  control in the footer lets them change or withdraw consent.
-- **Server-side events** ([`lib/analytics/server.ts`](apps/web/lib/analytics/server.ts))
-  are dependency-free and carry IDs/counts only — no email or report contents.
-- App-wide error boundaries ([`app/error.tsx`](apps/web/app/error.tsx),
-  [`app/global-error.tsx`](apps/web/app/global-error.tsx)) report a bounded
-  `$exception` to PostHog for an error-rate signal, and forward the full
-  exception to Sentry when its DSN is set (loaded via the dependency-free loader
-  script, also after consent).
+- RLS is enabled on new tables;
+- anon/authenticated roles can only select `cancellation_board_events`;
+- auth bucket and claim functions are executable only by `service_role`;
+- `cancellation_posts` is absent from `supabase_realtime`;
+- `cancellation_board_events` is present in `supabase_realtime`;
+- existing auth users have profiles without overwriting existing profile values;
+- concurrent inserts cannot exceed follow/report/cancellation caps;
+- concurrent workers obtain at most one active delivery claim.
 
-**Realtime live feeds.** The centre page and cancellation board subscribe to
-public-read tables and refresh on change ([`RealtimeRefresh`](apps/web/components/app/RealtimeRefresh.tsx)).
-Inert unless `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` are
-present **and** the tables are in the realtime publication.
+Migration `0012` is unreleased work and may be corrected in place until first deployment. After it is applied to any shared environment, do not edit it; ship any correction as a new forward migration.
 
-**To activate realtime:** apply [`supabase/migrations/0011_realtime.sql`](supabase/migrations/0011_realtime.sql)
-(idempotent — adds `centre_status` + approved-only `cancellation_posts` to the
-`supabase_realtime` publication). RLS still governs delivery, so clients only
-ever receive rows they may already read.
+## 5. Authentication configuration and limitation
+
+Configure the production Site URL and redirect allow list in Supabase Auth.
+
+The recovered signup route uses Supabase email confirmation and a database trigger to create the profile. The confirmation currently returns to `/login`; the user then logs in manually. The application does not yet exchange a PKCE callback code into an SSR session and does not yet provide expired-link recovery or password reset.
+
+Those account-lifecycle items are Phase 1 release dependencies. Do not claim that signup-to-session is complete until the callback and live staging auth tests exist.
+
+## 6. Cancellation notification delivery
+
+The Netlify scheduled function calls `/api/cron/deliver-notifications` every 15 minutes with `CRON_SECRET`.
+
+The worker:
+
+- selects all approved, active, unexpired community cancellation posts without a short lookback;
+- uses `notification_deliveries` as the durable per-user/post/channel record;
+- atomically claims new, failed or stale-pending work in the database;
+- never reclaims a `sent` row;
+- uses the delivery ID as Resend's provider idempotency key;
+- retries failed work up to three attempts.
+
+Resend retains provider idempotency keys for 24 hours. The database sent state remains the long-term dedupe record. A staging smoke test must cover a concurrent run, a failed retry and recovery after a scheduler outage before delivery is enabled for users.
+
+## 7. Analytics and realtime
+
+Browser and server analytics are disabled unless explicitly configured and remain consent-gated. Server capture requires `POSTHOG_KEY`; a public browser key does not silently enable it.
+
+Realtime browser subscriptions are limited to:
+
+- `centre_status`;
+- `cancellation_board_events`, which contains only a centre slug and refresh timestamp.
+
+Raw availability reports and raw cancellation posts must not be in the browser realtime publication.
+
+## 8. Pre-deploy gate
+
+Run under Node 20 after a frozen install:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm check:compliance
+pnpm build
+pnpm --filter web test:e2e
+```
+
+Also complete the migration evidence in section 4. `pnpm check:launch` is expected to fail while external legal evidence remains open.
+
+Do not deploy or push the phase branch with:
+
+- a failing baseline command;
+- an untested migration;
+- unexplained modified/untracked files;
+- production credentials in a preview;
+- false launch-evidence variables.
+
+## 9. Post-deploy staging smoke
+
+Against an isolated staging project:
+
+1. verify the deployed commit and migration head;
+2. create and confirm an account, then log in and complete onboarding;
+3. verify own-row and public aggregate RLS behavior with separate sessions;
+4. submit reports/cancellations up to and beyond database caps;
+5. run concurrent notification workers and confirm one delivery claim;
+6. interrupt a delivery, wait for the stale lease, then confirm recovery;
+7. verify no raw cancellation content reaches a realtime browser subscription;
+8. confirm no server secret appears in browser assets;
+9. record results and remaining manual evidence in `docs/launch-readiness.md`.

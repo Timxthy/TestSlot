@@ -31,6 +31,11 @@ describe("isServerAnalyticsConfigured", () => {
     process.env.POSTHOG_KEY = "phc_server";
     expect(isServerAnalyticsConfigured()).toBe(true);
   });
+
+  it("does not treat the browser PostHog key as server analytics consent", () => {
+    process.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_browser";
+    expect(isServerAnalyticsConfigured()).toBe(false);
+  });
 });
 
 describe("captureServer", () => {
@@ -41,12 +46,22 @@ describe("captureServer", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("POSTs a well-formed capture payload to the EU host by default", async () => {
+  it("does not POST without explicit analytics consent", async () => {
     process.env.POSTHOG_KEY = "phc_server";
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
 
     await captureServer("report_submitted", "user-1", { centre: "reading" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("POSTs a well-formed capture payload to the EU host once consent is granted", async () => {
+    process.env.POSTHOG_KEY = "phc_server";
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await captureServer("report_submitted", "user-1", { centre: "reading" }, { consent: "granted" });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
@@ -66,7 +81,7 @@ describe("captureServer", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
 
-    await captureServer("signup_completed", "user-2");
+    await captureServer("signup_completed", "user-2", {}, { consent: "granted" });
     expect(fetchMock.mock.calls[0][0]).toBe("https://ph.example.com/capture/");
   });
 
@@ -74,7 +89,7 @@ describe("captureServer", () => {
     process.env.POSTHOG_KEY = "phc_server";
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     await expect(
-      captureServer("account_deleted", "user-3", { self: true }),
+      captureServer("report_submitted", "user-3", {}, { consent: "granted" }),
     ).resolves.toBeUndefined();
   });
 
@@ -82,7 +97,7 @@ describe("captureServer", () => {
     process.env.POSTHOG_KEY = "phc_server";
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
-    await captureServer("report_submitted", "");
+    await captureServer("report_submitted", "", {}, { consent: "granted" });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).distinct_id).toBe("anonymous");
   });
 });

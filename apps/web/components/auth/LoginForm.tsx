@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { safeInternalPath } from "@/lib/auth-routing";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({
+  next,
+  notice,
+}: {
+  next?: string;
+  notice?: string;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,6 +47,11 @@ export function LoginForm({ next }: { next?: string }) {
     <div className="card p-6">
       <h1 className="text-2xl">Log in</h1>
       <p className="mt-1 text-sm text-slate-600">Welcome back.</p>
+      {notice ? (
+        <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {notice}
+        </p>
+      ) : null}
       <form onSubmit={submit} className="mt-6 space-y-4">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-slate-700">

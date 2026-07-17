@@ -6,6 +6,10 @@
 --                            recomputes (5-min cron, or on demand).
 --   * cancellation_posts    — the board refreshes when a post is approved/added.
 --
+-- 0012_launch_hardening.sql replaces the cancellation_posts browser subscription
+-- with cancellation_board_events so raw cancellation rows are no longer exposed
+-- over realtime; this migration remains in history for existing environments.
+--
 -- We expose ONLY tables whose RLS already permits client SELECT — never raw
 -- availability_reports. centre_status is public-read (0005); cancellation_posts
 -- has cancellations_public_read (0001) which limits clients to approved + active

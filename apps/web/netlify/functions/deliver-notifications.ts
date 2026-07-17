@@ -30,5 +30,6 @@ export default async () => {
   });
 };
 
-// Every 15 minutes. Adjust to taste; keep LOOKBACK_MINUTES in the route >= this.
+// Every 15 minutes. The route uses notification_deliveries for durable
+// idempotency, so it is not tied to this interval by a short lookback window.
 export const config = { schedule: "*/15 * * * *" };

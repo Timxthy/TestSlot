@@ -21,6 +21,8 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Stable per-message key used by Resend to deduplicate retries for 24 hours. */
+  idempotencyKey?: string;
   /** Optional extra email headers, e.g. List-Unsubscribe. */
   headers?: Record<string, string>;
 }
@@ -37,6 +39,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(input.idempotencyKey
+          ? { "Idempotency-Key": input.idempotencyKey.slice(0, 256) }
+          : {}),
       },
       body: JSON.stringify({
         from: fromAddress(),
