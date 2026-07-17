@@ -13,7 +13,7 @@ describe("ANALYTICS_EVENTS", () => {
       "report_scam_blocked",
       "cancellation_posted",
       "centre_followed",
-      "account_deleted",
+      "account_exported",
     ] as const) {
       expect(ANALYTICS_EVENTS).toContain(e);
     }

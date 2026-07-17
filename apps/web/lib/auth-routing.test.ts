@@ -26,6 +26,12 @@ describe("authRedirect", () => {
     );
   });
 
+  it("preserves the original query string in the login next param", () => {
+    expect(authRedirect("/report", false, "centre=reading")).toBe(
+      "/login?next=%2Freport%3Fcentre%3Dreading",
+    );
+  });
+
   it("leaves signed-in users on their app routes alone", () => {
     for (const path of ["/dashboard", "/settings", "/admin", "/centres/reading"]) {
       expect(authRedirect(path, true)).toBeNull();
