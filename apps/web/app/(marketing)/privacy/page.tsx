@@ -21,8 +21,9 @@ export default function PrivacyPage() {
       <section className="bg-white py-16 sm:py-20">
         <div className="container-page max-w-3xl space-y-8 text-slate-600">
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            This is a draft notice for the beta and will be finalised by a UK
-            solicitor before public launch.
+            This is a beta privacy notice. Public launch requires UK solicitor
+            review, DPIA sign-off and processor-agreement review for the services
+            we enable.
           </p>
 
           <div>
@@ -62,11 +63,11 @@ export default function PrivacyPage() {
             <p className="mt-3 leading-relaxed">
               We also use privacy-friendly product analytics (PostHog, hosted in
               the EU) to understand how the site is used so we can improve it.
-              These analytics cookies are <strong>off by default</strong> and
-              only run if you choose “Accept” on the cookie banner. If you
-              decline, none are set. There are no advertising or marketing
-              trackers, and analytics never receives anything from the
-              “what we never collect” list above.
+              Browser and server-side product analytics are{" "}
+              <strong>off by default</strong> and only run if you choose
+              “Accept” on the cookie banner. If you decline, none are sent.
+              There are no advertising or marketing trackers, and analytics never
+              receives anything from the “what we never collect” list above.
             </p>
           </div>
 

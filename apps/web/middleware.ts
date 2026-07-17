@@ -34,7 +34,11 @@ export async function middleware(request: NextRequest) {
 
   // Route by auth state: signed-in users away from guest-only pages into the app,
   // and signed-out users away from authed pages to /login (remembering ?next=).
-  const destination = authRedirect(request.nextUrl.pathname, Boolean(user));
+  const destination = authRedirect(
+    request.nextUrl.pathname,
+    Boolean(user),
+    request.nextUrl.searchParams.toString(),
+  );
   if (destination) {
     // `destination` may carry a query (?next=…), so resolve it as a full URL.
     const redirectResponse = NextResponse.redirect(new URL(destination, request.url));

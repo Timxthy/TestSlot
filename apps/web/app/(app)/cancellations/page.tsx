@@ -14,7 +14,7 @@ export default async function CancellationsPage() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-      <RealtimeRefresh channel={cancellationsChannel()} table="cancellation_posts" />
+      <RealtimeRefresh channel={cancellationsChannel()} table="cancellation_board_events" />
       <section>
         <h1 className="text-3xl">Cancellation board</h1>
         <p className="mt-1 text-slate-600">

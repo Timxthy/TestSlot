@@ -5,6 +5,7 @@ import { getStore } from "@/lib/data";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordContentFlag } from "@/lib/audit";
 import { captureServer } from "@/lib/analytics/server";
+import { isDailyLimitError } from "@/lib/db/errors";
 
 export const runtime = "nodejs";
 
@@ -33,11 +34,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: limited }, { status: 429 });
   }
   const store = getStore();
-  const { post, flagged } = await store.createCancellation(parsed.data, {
-    id: user.id,
-    name: user.name,
-    isInstructor: user.isInstructor,
-  });
+  let created;
+  try {
+    created = await store.createCancellation(parsed.data, {
+      id: user.id,
+      name: user.name,
+      isInstructor: user.isInstructor,
+    });
+  } catch (err) {
+    if (isDailyLimitError(err)) {
+      return NextResponse.json(
+        { error: "Daily limit reached. Please try again tomorrow." },
+        { status: 429 },
+      );
+    }
+    throw err;
+  }
+  const { post, flagged } = created;
   if (flagged) {
     await recordContentFlag({
       contentType: "cancellation_post",

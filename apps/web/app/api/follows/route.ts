@@ -3,6 +3,7 @@ import { entitlementsForTier } from "@testslot/shared";
 import { getCurrentUser } from "@/lib/auth";
 import { getStore } from "@/lib/data";
 import { captureServer } from "@/lib/analytics/server";
+import { isFollowLimitError } from "@/lib/db/errors";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,20 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
-    await store.follow(user.id, slug);
+    try {
+      await store.follow(user.id, slug);
+    } catch (err) {
+      if (isFollowLimitError(err)) {
+        return NextResponse.json(
+          {
+            error: `Your plan lets you follow up to ${limit} centres. Upgrade to follow more.`,
+            code: "follow_limit",
+          },
+          { status: 403 },
+        );
+      }
+      throw err;
+    }
     await captureServer("centre_followed", user.id, { centre: slug });
   } else {
     await store.unfollow(user.id, slug);

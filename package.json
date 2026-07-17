@@ -12,7 +12,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "check:compliance": "turbo run check:compliance"
+    "check:compliance": "turbo run check:compliance",
+    "check:launch": "pnpm --filter web check:launch"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

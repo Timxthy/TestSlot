@@ -20,8 +20,9 @@ export default function TermsPage() {
       <section className="bg-white py-16 sm:py-20">
         <div className="container-page max-w-3xl space-y-8 text-slate-600">
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            These are draft terms for the beta and will be finalised by a UK
-            solicitor before public launch.
+            These are beta terms. Public launch requires UK solicitor review,
+            DPIA sign-off and processor-agreement review for the services we
+            enable.
           </p>
 
           <div>

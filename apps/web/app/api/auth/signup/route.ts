@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SUPABASE_ENABLED } from "@/lib/supabase/config";
 import { captureServer } from "@/lib/analytics/server";
+import { checkSignupAttempt } from "@/lib/auth/rate-limit";
 
 export const runtime = "nodejs";
 
 const schema = z.object({
-  name: z.string().trim().min(1, "Enter your name."),
-  email: z.string().trim().toLowerCase().email("Enter a valid email."),
-  password: z.string().min(8, "Use at least 8 characters."),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter your name.")
+    .max(100, "Keep your name under 100 characters."),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254, "Enter a valid email.")
+    .email("Enter a valid email."),
+  password: z
+    .string()
+    .min(8, "Use at least 8 characters.")
+    .max(128, "Keep your password under 128 characters."),
 });
 
 export async function POST(request: Request) {
@@ -22,42 +35,48 @@ export async function POST(request: Request) {
     );
   }
   const { name, email, password } = parsed.data;
-  const admin = getAdminClient();
 
-  // Instant-confirm via Admin API so there's no email round-trip.
-  const { data: created, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { name },
-  });
-  if (error || !created?.user) {
-    const exists = /already|registered|exists/i.test(error?.message ?? "");
-    return NextResponse.json(
-      { error: exists ? "An account with that email already exists." : "Could not create your account." },
-      { status: exists ? 409 : 500 },
-    );
+  if (!SUPABASE_ENABLED) {
+    return NextResponse.json({ ok: true, next: "/onboarding" });
   }
 
-  // Profile row is required for FKs (reports/follows). If it fails, roll back the auth user.
-  const { error: profileError } = await admin
-    .from("profiles")
-    .upsert({ id: created.user.id, display_name: name, role: "learner", is_instructor_verified: false });
-  if (profileError) {
-    await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
-    console.error("signup profile creation failed", profileError);
+  const attempt = await checkSignupAttempt(email, request.headers);
+  if (!attempt.allowed) {
     return NextResponse.json(
-      { error: "Could not finish creating your account. Please try again." },
-      { status: 500 },
+      { error: attempt.message },
+      { status: attempt.reason === "limited" ? 429 : 503 },
     );
   }
-
-  await captureServer("signup_completed", created.user.id);
 
   const supabase = createSupabaseServerClient();
-  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-  if (signInError) {
-    return NextResponse.json({ ok: true, next: "/login" });
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name },
+      emailRedirectTo: `${siteUrl}/login`,
+    },
+  });
+  if (error || !data?.user) {
+    return NextResponse.json(
+      { error: "Could not create your account. Please try again." },
+      { status: 400 },
+    );
   }
-  return NextResponse.json({ ok: true, next: "/onboarding" });
+
+  await captureServer("signup_completed", data.user.id);
+
+  if (data.session) {
+    return NextResponse.json({ ok: true, next: "/onboarding" });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    next: "/login?checkEmail=1",
+    message: "Check your email to confirm your account, then log in.",
+  });
 }

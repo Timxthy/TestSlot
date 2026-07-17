@@ -12,6 +12,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "check:compliance": "node scripts/check-banned-phrases.mjs && node scripts/check-required-copy.mjs",
+    "check:launch": "node scripts/check-launch-readiness.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

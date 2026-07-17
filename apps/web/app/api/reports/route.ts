@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { auditLog, recordContentFlag } from "@/lib/audit";
 import { getUserTrustLevel } from "@/lib/trust";
 import { captureServer } from "@/lib/analytics/server";
+import { isDailyLimitError } from "@/lib/db/errors";
 
 export const runtime = "nodejs";
 
@@ -77,7 +78,18 @@ export async function POST(request: Request) {
   }
 
   const store = getStore();
-  const report = await store.createReport(parsed.data, user.id);
+  let report;
+  try {
+    report = await store.createReport(parsed.data, user.id);
+  } catch (err) {
+    if (isDailyLimitError(err)) {
+      return NextResponse.json(
+        { error: "Daily limit reached. Please try again tomorrow." },
+        { status: 429 },
+      );
+    }
+    throw err;
+  }
 
   if (gatesToModeration(trustLevel)) {
     await recordContentFlag({

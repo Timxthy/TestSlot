@@ -53,10 +53,12 @@ export function safeInternalPath(path: string | undefined | null): string | null
 export function authRedirect(
   pathname: string,
   isAuthed: boolean,
+  search = "",
 ): string | null {
   if (isAuthed && GUEST_ONLY_PATHS.has(pathname)) return APP_HOME;
   if (!isAuthed && isAppRoute(pathname)) {
-    return `/login?next=${encodeURIComponent(pathname)}`;
+    const destination = search ? `${pathname}?${search}` : pathname;
+    return `/login?next=${encodeURIComponent(destination)}`;
   }
   return null;
 }
